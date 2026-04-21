@@ -1,1467 +1,377 @@
-# CLAUDE.md — Frontend Integration: Mock Data Removal & Backend Connection
+# Deploy Backend ElysiaJS ke Vercel (Native Bun Runtime)
 
-> **Konteks**: Frontend Amertask (Next.js 16 + TypeScript) sudah berjalan dengan mock data.
-> Backend ElysiaJS di `http://localhost:3000` sudah live dan seluruh endpoint mengembalikan status **200 OK**.
-> Tugas ini adalah **mengganti seluruh mock data dengan koneksi real ke backend** melalui satu lapisan terpusat: `src/lib/core/`.
-
----
-
-## ⚠️ Aturan Kerja (Wajib Dibaca Sebelum Mulai)
-
-1. **Jangan hapus file apapun** sebelum semua dependensinya sudah diganti.
-2. **Kerjakan secara berurutan** sesuai fase di dokumen ini — jangan melompat.
-3. **Satu sumber kebenaran**: semua pemanggilan API **harus** melewati `src/lib/core/`. Dilarang menulis `fetch()` langsung di komponen atau hook.
-4. **Jangan ubah** file berikut: `types/index.ts`, `lib/constants.ts`, `lib/utils.ts`, `lib/theme.ts`, `lib/motion-variants.ts`, `store/useThemeStore.ts`. File-file ini tidak ada kaitannya dengan migrasi ini.
-5. Setelah setiap fase selesai, pastikan tidak ada TypeScript error sebelum lanjut ke fase berikutnya.
+> **Sumber:** https://bun.com/blog/vercel-adds-native-bun-support (28 Oktober 2025)
+> **Status:** Public Beta — stabil untuk production, tapi masih ada kemungkinan perubahan
 
 ---
 
-## 🗺️ Peta Perubahan
+## Cara Kerja
 
-```
-SEBELUM                          SESUDAH
-─────────────────────────────────────────────────────────────────
-src/lib/mock-data.ts        →    DIHAPUS (di fase terakhir)
-src/lib/api.ts              →    DIGANTI TOTAL dengan src/lib/core/
-src/hooks/useAuth.ts        →    DITULIS ULANG
-src/hooks/useIssues.ts      →    DITULIS ULANG
-                                 + hook baru: useTeams, useInbox,
-                                   useAnalytics, useTriage, useUsers
-```
+Vercel mendeteksi `"bunVersion": "1.x"` di `vercel.json` lalu secara otomatis:
+
+- Install Bun
+- Menjalankan build dan start command dengan Bun
+- Mengeksekusi serverless function dengan Bun runtime (bukan Node.js)
+
+Tidak ada adapter, tidak ada konversi `IncomingMessage` ↔ `Request`.
+ElysiaJS `.handle()` langsung compatible karena sama-sama Web Standard API.
 
 ---
 
-## 📁 Fase 1 — Buat Struktur `src/lib/core/`
-
-Buat folder dan file berikut. **Isi setiap file sesuai spesifikasi di bawah.**
+## Struktur File
 
 ```
-src/lib/core/
-├── index.ts          ← re-export semua public API
-├── token.ts          ← manajemen token di localStorage
-├── http.ts           ← base fetch client + auto token refresh
-├── auth.api.ts       ← endpoint /auth/*
-├── users.api.ts      ← endpoint /users/*
-├── teams.api.ts      ← endpoint /teams/*
-├── issues.api.ts     ← endpoint /issues/* dan /teams/:slug/issues
-├── triage.api.ts     ← endpoint /triage/*
-├── inbox.api.ts      ← endpoint /inbox/*
-└── analytics.api.ts  ← endpoint /teams/:slug/analytics
+apps/server/
+├── api/
+│   └── index.ts       ← BUAT BARU — Vercel entry point (3 baris)
+├── src/
+│   ├── app.ts         ← BUAT BARU — App factory tanpa .listen()
+│   └── index.ts       ← EDIT — Local dev entry point
+├── vercel.json        ← BUAT BARU
+└── package.json       ← EDIT
 ```
 
 ---
 
-### `src/lib/core/token.ts`
+## LANGKAH 1 — Buat `src/app.ts` (App Factory)
 
-Bertanggung jawab atas semua operasi localStorage untuk token. Tidak ada komponen atau hook yang boleh mengakses localStorage untuk token secara langsung — semuanya lewat sini.
+**File: `apps/server/src/app.ts`** ← **BUAT FILE BARU**
+
+Pisahkan setup Elysia dari `.listen()` agar bisa di-import oleh
+entry point yang berbeda (local dev vs Vercel).
 
 ```typescript
-const ACCESS_TOKEN_KEY = "amertask_access_token";
-const REFRESH_TOKEN_KEY = "amertask_refresh_token";
+import { Elysia } from "elysia";
+import { cors } from "@elysiajs/cors";
 
-export const tokenStorage = {
-  getAccess: (): string | null =>
-    typeof window !== "undefined"
-      ? localStorage.getItem(ACCESS_TOKEN_KEY)
-      : null,
+import { authRoutes } from "./routes/auth.routes";
+import { usersRoutes } from "./routes/users.routes";
+import { teamsRoutes } from "./routes/teams.routes";
+import { issuesRoutes } from "./routes/issues.routes";
+import { triageRoutes } from "./routes/triage.routes";
+import { analyticsRoutes } from "./routes/analytics.routes";
+import { exportRoutes } from "./routes/export.routes";
 
-  getRefresh: (): string | null =>
-    typeof window !== "undefined"
-      ? localStorage.getItem(REFRESH_TOKEN_KEY)
-      : null,
+// Baca allowed origins dari env — pisah koma jika lebih dari satu URL
+// Contoh: FRONTEND_URL=https://app.vercel.app,https://staging.vercel.app
+const allowedOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3001")
+  .split(",")
+  .map((o) => o.trim());
 
-  setTokens: (accessToken: string, refreshToken: string): void => {
-    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-  },
-
-  clearTokens: (): void => {
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-  },
-
-  hasTokens: (): boolean =>
-    Boolean(tokenStorage.getAccess() && tokenStorage.getRefresh()),
-};
-```
-
----
-
-### `src/lib/core/http.ts`
-
-Ini adalah inti dari seluruh lapisan core. Berisi `apiClient` — sebuah fungsi fetch yang:
-
-- Menyisipkan `Authorization: Bearer <token>` secara otomatis
-- Menangani **token refresh otomatis** ketika menerima respons `401`
-- Memformat error menjadi `ApiError` yang konsisten
-- Melakukan redirect ke `/` ketika refresh token juga gagal (sesi habis)
-
-```typescript
-import { tokenStorage } from "./token";
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-
-export class ApiError extends Error {
-  constructor(
-    public readonly statusCode: number,
-    public readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
-
-// Flag untuk mencegah multiple refresh request serentak
-let isRefreshing = false;
-let refreshPromise: Promise<boolean> | null = null;
-
-async function attemptTokenRefresh(): Promise<boolean> {
-  if (isRefreshing && refreshPromise) return refreshPromise;
-
-  isRefreshing = true;
-  refreshPromise = (async () => {
-    const refreshToken = tokenStorage.getRefresh();
-    if (!refreshToken) return false;
-
-    try {
-      const res = await fetch(`${BASE_URL}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      if (!res.ok) {
-        tokenStorage.clearTokens();
-        return false;
-      }
-
-      const data = await res.json();
-      tokenStorage.setTokens(data.accessToken, data.refreshToken);
-      return true;
-    } catch {
-      tokenStorage.clearTokens();
-      return false;
-    } finally {
-      isRefreshing = false;
-      refreshPromise = null;
+export const app = new Elysia()
+  .use(
+    cors({
+      origin: allowedOrigins,
+      credentials: true,
+      allowedHeaders: ["Content-Type", "Authorization"],
+      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    }),
+  )
+  // Health check — untuk monitoring dan verifikasi runtime
+  .get("/health", () => ({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    runtime:
+      typeof Bun !== "undefined" ? `bun ${Bun.version}` : process.version,
+  }))
+  .use(authRoutes)
+  .use(usersRoutes)
+  .use(teamsRoutes)
+  .use(issuesRoutes)
+  .use(triageRoutes)
+  .use(analyticsRoutes)
+  .use(exportRoutes)
+  .onError(({ code, error, set }) => {
+    if (code === "VALIDATION") {
+      set.status = 400;
+      return { error: "VALIDATION_ERROR", message: error.message };
     }
-  })();
-
-  return refreshPromise;
-}
-
-export async function apiClient<T = unknown>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const makeRequest = async (withToken: boolean): Promise<Response> => {
-    const token = tokenStorage.getAccess();
-    return fetch(`${BASE_URL}${path}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(withToken && token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-    });
-  };
-
-  let res = await makeRequest(true);
-
-  // Auto-refresh: jika 401, coba refresh sekali lalu retry
-  if (res.status === 401) {
-    const refreshed = await attemptTokenRefresh();
-    if (refreshed) {
-      res = await makeRequest(true);
-    } else {
-      // Sesi habis — redirect ke landing page
-      if (typeof window !== "undefined") {
-        tokenStorage.clearTokens();
-        window.location.href = "/";
-      }
-      throw new ApiError(
-        401,
-        "UNAUTHORIZED",
-        "Sesi berakhir. Silakan login kembali.",
-      );
+    if (code === "NOT_FOUND") {
+      set.status = 404;
+      return { error: "NOT_FOUND", message: "Endpoint tidak ditemukan" };
     }
-  }
-
-  if (!res.ok) {
-    let errorPayload: { error?: string; message?: string } = {};
-    try {
-      errorPayload = await res.json();
-    } catch {
-      /* ignore */
-    }
-    throw new ApiError(
-      res.status,
-      errorPayload.error ?? "UNKNOWN_ERROR",
-      errorPayload.message ?? "Terjadi kesalahan. Coba lagi.",
-    );
-  }
-
-  // Untuk respons 204 No Content
-  if (res.status === 204) return undefined as T;
-
-  return res.json() as Promise<T>;
-}
-```
-
----
-
-### `src/lib/core/auth.api.ts`
-
-```typescript
-import { apiClient } from "./http";
-import { tokenStorage } from "./token";
-import type { User } from "@/types";
-
-interface AuthResponse {
-  user: User;
-  accessToken: string;
-  refreshToken: string;
-}
-
-interface RegisterPayload {
-  name: string;
-  email: string;
-  password: string;
-}
-
-interface LoginPayload {
-  email: string;
-  password: string;
-}
-
-export const authApi = {
-  async register(payload: RegisterPayload): Promise<AuthResponse> {
-    const data = await apiClient<AuthResponse>("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    tokenStorage.setTokens(data.accessToken, data.refreshToken);
-    return data;
-  },
-
-  async login(payload: LoginPayload): Promise<AuthResponse> {
-    const data = await apiClient<AuthResponse>("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    tokenStorage.setTokens(data.accessToken, data.refreshToken);
-    return data;
-  },
-
-  async logout(): Promise<void> {
-    const refreshToken = tokenStorage.getRefresh();
-    if (refreshToken) {
-      try {
-        await apiClient("/auth/logout", {
-          method: "POST",
-          body: JSON.stringify({ refreshToken }),
-        });
-      } catch {
-        /* abaikan error logout, tetap clear token */
-      }
-    }
-    tokenStorage.clearTokens();
-  },
-};
-```
-
----
-
-### `src/lib/core/users.api.ts`
-
-```typescript
-import { apiClient } from "./http";
-import type { User } from "@/types";
-
-interface UserWithTeams extends User {
-  teams: Array<{ id: string; slug: string; name: string; role: string }>;
-}
-
-interface UpdateProfilePayload {
-  name?: string;
-  avatar?: string;
-}
-
-export const usersApi = {
-  getMe: (): Promise<UserWithTeams> => apiClient<UserWithTeams>("/users/me"),
-
-  updateMe: (payload: UpdateProfilePayload): Promise<UserWithTeams> =>
-    apiClient<UserWithTeams>("/users/me", {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    }),
-};
-```
-
----
-
-### `src/lib/core/teams.api.ts`
-
-```typescript
-import { apiClient } from "./http";
-import type { Team } from "@/types";
-
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-  initials: string;
-  role: "owner" | "admin" | "member";
-  joinedAt: string;
-}
-
-interface TeamStats {
-  totalIssues: number;
-  openIssues: number;
-  inProgress: number;
-  completed: number;
-  cancelled: number;
-}
-
-interface TeamDetail extends Team {
-  type: string;
-  startDate?: string;
-  endDate?: string;
-  stats: TeamStats;
-}
-
-interface ProjectSettings {
-  id: string;
-  teamId: string;
-  name: string;
-  slug: string;
-  type: "konstruksi" | "it" | "tugas";
-  startDate?: string;
-  endDate?: string;
-  projectManagerId?: string;
-  company?: string;
-  workArea?: string;
-  description?: string;
-  integrations: {
-    githubRepo?: string;
-    googleDocsUrl?: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface UpdateSettingsPayload {
-  name?: string;
-  slug?: string;
-  type?: "konstruksi" | "it" | "tugas";
-  startDate?: string;
-  endDate?: string;
-  projectManagerId?: string;
-  company?: string;
-  workArea?: string;
-  description?: string;
-  integrations?: {
-    githubRepo?: string;
-    googleDocsUrl?: string;
-  };
-}
-
-interface CreateTeamPayload {
-  slug: string;
-  name: string;
-  type?: "konstruksi" | "it" | "tugas";
-}
-
-export const teamsApi = {
-  list: (): Promise<{ teams: (Team & { role: string })[] }> =>
-    apiClient("/teams"),
-
-  create: (payload: CreateTeamPayload): Promise<Team> =>
-    apiClient("/teams", { method: "POST", body: JSON.stringify(payload) }),
-
-  getBySlug: (teamSlug: string): Promise<TeamDetail> =>
-    apiClient(`/teams/${teamSlug}`),
-
-  getMembers: (teamSlug: string): Promise<{ members: TeamMember[] }> =>
-    apiClient(`/teams/${teamSlug}/members`),
-
-  getSettings: (teamSlug: string): Promise<ProjectSettings> =>
-    apiClient(`/teams/${teamSlug}/settings`),
-
-  updateSettings: (
-    teamSlug: string,
-    payload: UpdateSettingsPayload,
-  ): Promise<ProjectSettings> =>
-    apiClient(`/teams/${teamSlug}/settings`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    }),
-};
-```
-
----
-
-### `src/lib/core/issues.api.ts`
-
-```typescript
-import { apiClient } from "./http";
-import type { Issue } from "@/types";
-
-interface IssueListParams {
-  status?: string; // csv: "todo,in_progress"
-  priority?: string; // csv: "urgent,high"
-  labels?: string; // csv: "Frontend,Bug"
-  assigneeId?: string;
-  search?: string;
-  sortBy?: string;
-  sortDir?: "asc" | "desc";
-  page?: number;
-  limit?: number;
-}
-
-interface IssueListResponse {
-  issues: Issue[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-interface CreateIssuePayload {
-  title: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  labels?: string[];
-  assigneeId?: string;
-  parentIssueId?: string;
-  source?: "slack" | "email" | "manual";
-  isTriaged?: boolean;
-}
-
-type UpdateIssuePayload = Partial<CreateIssuePayload>;
-
-function buildQueryString(params: Record<string, unknown>): string {
-  const qs = new URLSearchParams();
-  for (const [key, val] of Object.entries(params)) {
-    if (val !== undefined && val !== null && val !== "") {
-      qs.set(key, String(val));
-    }
-  }
-  const str = qs.toString();
-  return str ? `?${str}` : "";
-}
-
-export const issuesApi = {
-  list: (
-    teamSlug: string,
-    params: IssueListParams = {},
-  ): Promise<IssueListResponse> =>
-    apiClient(`/teams/${teamSlug}/issues${buildQueryString(params)}`),
-
-  getById: (id: string): Promise<Issue> => apiClient(`/issues/${id}`),
-
-  create: (teamSlug: string, payload: CreateIssuePayload): Promise<Issue> =>
-    apiClient(`/teams/${teamSlug}/issues`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  update: (id: string, payload: UpdateIssuePayload): Promise<Issue> =>
-    apiClient(`/issues/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    }),
-
-  remove: (id: string): Promise<{ message: string }> =>
-    apiClient(`/issues/${id}`, { method: "DELETE" }),
-};
-```
-
----
-
-### `src/lib/core/triage.api.ts`
-
-```typescript
-import { apiClient } from "./http";
-import type { Issue } from "@/types";
-
-interface TriageListResponse {
-  issues: Issue[];
-  total: number;
-}
-
-interface AcceptPayload {
-  priority?: string;
-  assigneeId?: string;
-  labels?: string[];
-}
-
-interface DeclinePayload {
-  reason?: string;
-}
-
-export const triageApi = {
-  list: (teamSlug: string): Promise<TriageListResponse> =>
-    apiClient(`/teams/${teamSlug}/triage`),
-
-  accept: (issueId: string, payload?: AcceptPayload): Promise<Issue> =>
-    apiClient(`/triage/${issueId}/accept`, {
-      method: "POST",
-      body: JSON.stringify(payload ?? {}),
-    }),
-
-  decline: (
-    issueId: string,
-    payload?: DeclinePayload,
-  ): Promise<{ message: string; issueId: string }> =>
-    apiClient(`/triage/${issueId}/decline`, {
-      method: "POST",
-      body: JSON.stringify(payload ?? {}),
-    }),
-};
-```
-
----
-
-### `src/lib/core/inbox.api.ts`
-
-```typescript
-import { apiClient } from "./http";
-
-interface Notification {
-  id: string;
-  type: string;
-  title: string;
-  body?: string;
-  issueId?: string;
-  teamId?: string;
-  isRead: boolean;
-  createdAt: string;
-}
-
-interface InboxResponse {
-  notifications: Notification[];
-  unreadCount: number;
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-interface InboxParams {
-  unread?: boolean;
-  page?: number;
-  limit?: number;
-}
-
-export const inboxApi = {
-  list: (params: InboxParams = {}): Promise<InboxResponse> => {
-    const qs = new URLSearchParams();
-    if (params.unread) qs.set("unread", "true");
-    if (params.page) qs.set("page", String(params.page));
-    if (params.limit) qs.set("limit", String(params.limit));
-    const query = qs.toString() ? `?${qs}` : "";
-    return apiClient(`/inbox${query}`);
-  },
-
-  markAsRead: (notificationId: string): Promise<{ message: string }> =>
-    apiClient(`/inbox/${notificationId}/read`, { method: "PATCH" }),
-
-  markAllAsRead: (): Promise<{ message: string }> =>
-    apiClient("/inbox/read-all", { method: "PATCH" }),
-};
-```
-
----
-
-### `src/lib/core/analytics.api.ts`
-
-```typescript
-import { apiClient } from "./http";
-
-interface AnalyticsSummary {
-  totalIssues: number;
-  openIssues: number;
-  inProgress: number;
-  completed: number;
-  cancelled: number;
-}
-
-interface AnalyticsResponse {
-  summary: AnalyticsSummary;
-  byStatus: Array<{ status: string; count: number }>;
-  byPriority: Array<{ priority: string; count: number }>;
-  byAssignee: Array<{
-    userId: string;
-    name: string;
-    avatar?: string;
-    initials: string;
-    count: number;
-  }>;
-  completionTrend: Array<{ date: string; completed: number; created: number }>;
-}
-
-interface AnalyticsParams {
-  from?: string; // ISO date string
-  to?: string; // ISO date string
-}
-
-export const analyticsApi = {
-  get: (
-    teamSlug: string,
-    params: AnalyticsParams = {},
-  ): Promise<AnalyticsResponse> => {
-    const qs = new URLSearchParams();
-    if (params.from) qs.set("from", params.from);
-    if (params.to) qs.set("to", params.to);
-    const query = qs.toString() ? `?${qs}` : "";
-    return apiClient(`/teams/${teamSlug}/analytics${query}`);
-  },
-};
-```
-
----
-
-### `src/lib/core/index.ts`
-
-File ini adalah satu-satunya yang diimpor oleh hook dan komponen. Tidak ada yang boleh mengimpor langsung dari file internal core.
-
-```typescript
-// Public API dari lib/core
-export { apiClient, ApiError } from "./http";
-export { tokenStorage } from "./token";
-export { authApi } from "./auth.api";
-export { usersApi } from "./users.api";
-export { teamsApi } from "./teams.api";
-export { issuesApi } from "./issues.api";
-export { triageApi } from "./triage.api";
-export { inboxApi } from "./inbox.api";
-export { analyticsApi } from "./analytics.api";
-```
-
----
-
-## 📁 Fase 2 — Tulis Ulang `src/hooks/useAuth.ts`
-
-Hapus seluruh isi file sebelumnya dan ganti dengan implementasi berikut. Hook ini sekarang membaca user dari API (`/users/me`), bukan dari mock.
-
-```typescript
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-import { authApi, usersApi, tokenStorage, ApiError } from "@/lib/core";
-import type { User } from "@/types";
-
-interface AuthState {
-  user: User | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  error: string | null;
-}
-
-interface LoginPayload {
-  email: string;
-  password: string;
-}
-interface RegisterPayload {
-  name: string;
-  email: string;
-  password: string;
-}
-
-export function useAuth() {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    isLoading: true, // true saat pertama kali load untuk cek sesi
-    isAuthenticated: false,
-    error: null,
+    console.error("[global error]", code, error);
+    set.status = 500;
+    return { error: "INTERNAL_ERROR", message: "Terjadi kesalahan server" };
   });
 
-  // Cek sesi aktif saat mount
-  useEffect(() => {
-    if (!tokenStorage.hasTokens()) {
-      setState((prev) => ({ ...prev, isLoading: false }));
-      return;
+export type App = typeof app;
+```
+
+---
+
+## LANGKAH 2 — Edit `src/index.ts` (Local Dev)
+
+**File: `apps/server/src/index.ts`** ← **EDIT**
+
+```typescript
+// Entry point untuk local development — hanya dipakai saat bun run dev
+// Untuk Vercel, yang dipakai adalah api/index.ts
+import { app } from "./app";
+
+const port = Number(process.env.PORT ?? 3000);
+
+app.listen(port);
+
+console.log(`🦊 Server berjalan di http://localhost:${port}`);
+console.log(`   Bun v${Bun.version}`);
+console.log(`   Swagger: http://localhost:${port}/docs`);
+```
+
+---
+
+## LANGKAH 3 — Buat Vercel Entry Point
+
+**File: `apps/server/api/index.ts`** ← **BUAT BARU**
+
+```typescript
+import { app } from "../src/app";
+
+// Vercel Bun Runtime memanggil handler ini dengan Web Standard Request
+// ElysiaJS .handle() mengembalikan Web Standard Response — langsung compatible
+export default app.handle;
+```
+
+Tiga baris. Tidak ada adapter, tidak ada konversi, tidak ada boilerplate.
+
+---
+
+## LANGKAH 4 — Buat `vercel.json`
+
+**File: `apps/server/vercel.json`** ← **BUAT BARU**
+
+```json
+{
+  "bunVersion": "1.x",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
     }
-
-    usersApi
-      .getMe()
-      .then((user) =>
-        setState({
-          user,
-          isLoading: false,
-          isAuthenticated: true,
-          error: null,
-        }),
-      )
-      .catch(() => {
-        tokenStorage.clearTokens();
-        setState({
-          user: null,
-          isLoading: false,
-          isAuthenticated: false,
-          error: null,
-        });
-      });
-  }, []);
-
-  const login = useCallback(async (payload: LoginPayload) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const { user } = await authApi.login(payload);
-      setState({ user, isLoading: false, isAuthenticated: true, error: null });
-    } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : "Login gagal. Coba lagi.";
-      setState((prev) => ({ ...prev, isLoading: false, error: message }));
-      throw err;
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
     }
-  }, []);
+  ]
+}
+```
 
-  const register = useCallback(async (payload: RegisterPayload) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const { user } = await authApi.register(payload);
-      setState({ user, isLoading: false, isAuthenticated: true, error: null });
-    } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : "Registrasi gagal. Coba lagi.";
-      setState((prev) => ({ ...prev, isLoading: false, error: message }));
-      throw err;
+### Catatan penting tentang `vercel.json`
+
+`"bunVersion": "1.x"` di root adalah **satu-satunya config yang diperlukan** untuk mengaktifkan Bun runtime. Vercel mendeteksinya secara otomatis dan:
+
+- Install Bun
+- Jalankan build dan start dengan Bun
+- Eksekusi semua function dengan Bun runtime
+
+Tidak perlu menulis `"runtime": "bun"` di dalam `"functions"`, tidak perlu `"buildCommand"` atau `"installCommand"` secara eksplisit — Vercel handle semuanya. Nilai `"1.x"` adalah satu-satunya format yang didukung saat ini; Vercel yang kelola minor version.
+
+---
+
+## LANGKAH 5 — Update `package.json`
+
+**File: `apps/server/package.json`** ← **EDIT**
+
+```json
+{
+  "name": "taskops-server",
+  "version": "1.0.0",
+  "module": "src/index.ts",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "elysia": "latest",
+    "@elysiajs/cors": "latest",
+    "@elysiajs/swagger": "latest",
+    "@supabase/supabase-js": "latest",
+    "googleapis": "latest",
+    "jose": "latest"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/bun": "latest"
+  }
+}
+```
+
+`"build"` script tidak diperlukan — Vercel dengan Bun runtime tidak butuh pre-build step terpisah.
+
+---
+
+## LANGKAH 6 — Update `tsconfig.json`
+
+**File: `apps/server/tsconfig.json`** ← **EDIT**
+
+```json
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "strict": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
     }
-  }, []);
-
-  const logout = useCallback(async () => {
-    await authApi.logout();
-    setState({
-      user: null,
-      isLoading: false,
-      isAuthenticated: false,
-      error: null,
-    });
-  }, []);
-
-  const clearError = useCallback(() => {
-    setState((prev) => ({ ...prev, error: null }));
-  }, []);
-
-  return {
-    user: state.user,
-    isLoading: state.isLoading,
-    isAuthenticated: state.isAuthenticated,
-    error: state.error,
-    login,
-    register,
-    logout,
-    clearError,
-  };
+  },
+  "include": ["src/**/*", "api/**/*"],
+  "exclude": ["node_modules"]
 }
 ```
+
+`"api/**/*"` di `include` wajib ada agar TypeScript bisa type-check `api/index.ts`.
+`@types/node` tidak diperlukan karena pakai Bun types.
 
 ---
 
-## 📁 Fase 3 — Tulis Ulang `src/hooks/useIssues.ts`
+## LANGKAH 7 — Set Environment Variables di Vercel
 
-```typescript
-"use client";
+Masuk ke **Vercel Dashboard → Project → Settings → Environment Variables**.
+Set untuk semua environment (Production, Preview, Development):
 
-import { useState, useEffect, useCallback } from "react";
-import { issuesApi, ApiError } from "@/lib/core";
-import type { Issue } from "@/types";
-
-interface IssueFilters {
-  status?: string;
-  priority?: string;
-  labels?: string;
-  assigneeId?: string;
-  search?: string;
-  sortBy?: string;
-  sortDir?: "asc" | "desc";
-  page?: number;
-  limit?: number;
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
-
-interface UseIssuesState {
-  issues: Issue[];
-  pagination: Pagination | null;
-  isLoading: boolean;
-  error: string | null;
-}
-
-export function useIssues(teamSlug: string, initialFilters: IssueFilters = {}) {
-  const [filters, setFilters] = useState<IssueFilters>(initialFilters);
-  const [state, setState] = useState<UseIssuesState>({
-    issues: [],
-    pagination: null,
-    isLoading: true,
-    error: null,
-  });
-
-  const fetchIssues = useCallback(
-    async (currentFilters: IssueFilters) => {
-      if (!teamSlug) return;
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
-      try {
-        const data = await issuesApi.list(teamSlug, currentFilters);
-        setState({
-          issues: data.issues,
-          pagination: data.pagination,
-          isLoading: false,
-          error: null,
-        });
-      } catch (err) {
-        const message =
-          err instanceof ApiError ? err.message : "Gagal memuat issues.";
-        setState((prev) => ({ ...prev, isLoading: false, error: message }));
-      }
-    },
-    [teamSlug],
-  );
-
-  useEffect(() => {
-    fetchIssues(filters);
-  }, [fetchIssues, filters]);
-
-  const createIssue = useCallback(
-    async (payload: Parameters<typeof issuesApi.create>[1]) => {
-      const issue = await issuesApi.create(teamSlug, payload);
-      setState((prev) => ({ ...prev, issues: [issue, ...prev.issues] }));
-      return issue;
-    },
-    [teamSlug],
-  );
-
-  const updateIssue = useCallback(
-    async (id: string, payload: Parameters<typeof issuesApi.update>[1]) => {
-      const updated = await issuesApi.update(id, payload);
-      setState((prev) => ({
-        ...prev,
-        issues: prev.issues.map((i) => (i.id === id ? updated : i)),
-      }));
-      return updated;
-    },
-    [],
-  );
-
-  const deleteIssue = useCallback(async (id: string) => {
-    await issuesApi.remove(id);
-    setState((prev) => ({
-      ...prev,
-      issues: prev.issues.filter((i) => i.id !== id),
-    }));
-  }, []);
-
-  const refetch = useCallback(
-    () => fetchIssues(filters),
-    [fetchIssues, filters],
-  );
-
-  const applyFilters = useCallback((newFilters: IssueFilters) => {
-    setFilters((prev) => ({ ...prev, ...newFilters, page: 1 }));
-  }, []);
-
-  return {
-    issues: state.issues,
-    pagination: state.pagination,
-    isLoading: state.isLoading,
-    error: state.error,
-    createIssue,
-    updateIssue,
-    deleteIssue,
-    refetch,
-    applyFilters,
-    filters,
-  };
-}
 ```
+SUPABASE_URL                 → https://xxxx.supabase.co
+SUPABASE_ANON_KEY            → eyJ...
+SUPABASE_SERVICE_ROLE_KEY    → eyJ...
+
+JWT_SECRET                   → [min 32 karakter — generate: openssl rand -base64 32]
+JWT_ACCESS_EXPIRES            → 15m
+JWT_REFRESH_EXPIRES           → 7d
+
+GOOGLE_SERVICE_ACCOUNT_EMAIL → taskops@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY            → -----BEGIN PRIVATE KEY-----\nMII...
+GOOGLE_PROJECT_ID             → your-project-id
+
+FRONTEND_URL                 → https://your-frontend.vercel.app
+NODE_ENV                     → production
+```
+
+> **GOOGLE_PRIVATE_KEY:** Paste value lengkap termasuk `\n` literal langsung di Vercel dashboard — jangan tambahkan quote ekstra. Vercel preserve formatting secara otomatis.
 
 ---
 
-## 📁 Fase 4 — Buat Hook-Hook Baru
+## LANGKAH 8 — Update Frontend
 
-Buat file-file berikut di `src/hooks/`:
+**File: `apps/web/.env.production`:**
 
-### `src/hooks/useTeams.ts`
-
-```typescript
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-import { teamsApi, ApiError } from "@/lib/core";
-import type { Team } from "@/types";
-
-export function useTeams() {
-  const [teams, setTeams] = useState<(Team & { role: string })[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchTeams = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await teamsApi.list();
-      setTeams(data.teams);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Gagal memuat tim.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTeams();
-  }, [fetchTeams]);
-
-  return { teams, isLoading, error, refetch: fetchTeams };
-}
-
-export function useTeamDetail(teamSlug: string) {
-  const [team, setTeam] = useState<Awaited<
-    ReturnType<typeof teamsApi.getBySlug>
-  > | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!teamSlug) return;
-    setIsLoading(true);
-    teamsApi
-      .getBySlug(teamSlug)
-      .then((data) => {
-        setTeam(data);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        setError(
-          err instanceof ApiError ? err.message : "Gagal memuat detail tim.",
-        );
-        setIsLoading(false);
-      });
-  }, [teamSlug]);
-
-  return { team, isLoading, error };
-}
-
-export function useTeamMembers(teamSlug: string) {
-  const [members, setMembers] = useState<
-    Awaited<ReturnType<typeof teamsApi.getMembers>>["members"]
-  >([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!teamSlug) return;
-    teamsApi
-      .getMembers(teamSlug)
-      .then((data) => {
-        setMembers(data.members);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        setError(
-          err instanceof ApiError ? err.message : "Gagal memuat anggota tim.",
-        );
-        setIsLoading(false);
-      });
-  }, [teamSlug]);
-
-  return { members, isLoading, error };
-}
-
-export function useTeamSettings(teamSlug: string) {
-  const [settings, setSettings] = useState<Awaited<
-    ReturnType<typeof teamsApi.getSettings>
-  > | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!teamSlug) return;
-    teamsApi
-      .getSettings(teamSlug)
-      .then((data) => {
-        setSettings(data);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        setError(
-          err instanceof ApiError ? err.message : "Gagal memuat pengaturan.",
-        );
-        setIsLoading(false);
-      });
-  }, [teamSlug]);
-
-  const updateSettings = useCallback(
-    async (payload: Parameters<typeof teamsApi.updateSettings>[1]) => {
-      setIsSaving(true);
-      setError(null);
-      try {
-        const updated = await teamsApi.updateSettings(teamSlug, payload);
-        setSettings(updated);
-        return updated;
-      } catch (err) {
-        const message =
-          err instanceof ApiError ? err.message : "Gagal menyimpan pengaturan.";
-        setError(message);
-        throw err;
-      } finally {
-        setIsSaving(false);
-      }
-    },
-    [teamSlug],
-  );
-
-  return { settings, isLoading, isSaving, error, updateSettings };
-}
+```env
+NEXT_PUBLIC_API_URL=https://your-backend.vercel.app
+BACKEND_URL=https://your-backend.vercel.app
 ```
+
+Atau set langsung di Vercel dashboard untuk project frontend.
 
 ---
 
-### `src/hooks/useTriage.ts`
-
-```typescript
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-import { triageApi, ApiError } from "@/lib/core";
-import type { Issue } from "@/types";
-
-export function useTriage(teamSlug: string) {
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchTriage = useCallback(async () => {
-    if (!teamSlug) return;
-    setIsLoading(true);
-    try {
-      const data = await triageApi.list(teamSlug);
-      setIssues(data.issues);
-      setTotal(data.total);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Gagal memuat triage.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [teamSlug]);
-
-  useEffect(() => {
-    fetchTriage();
-  }, [fetchTriage]);
-
-  const acceptIssue = useCallback(
-    async (
-      issueId: string,
-      payload?: Parameters<typeof triageApi.accept>[1],
-    ) => {
-      const updated = await triageApi.accept(issueId, payload);
-      setIssues((prev) => prev.filter((i) => i.id !== issueId));
-      setTotal((prev) => prev - 1);
-      return updated;
-    },
-    [],
-  );
-
-  const declineIssue = useCallback(
-    async (
-      issueId: string,
-      payload?: Parameters<typeof triageApi.decline>[1],
-    ) => {
-      await triageApi.decline(issueId, payload);
-      setIssues((prev) => prev.filter((i) => i.id !== issueId));
-      setTotal((prev) => prev - 1);
-    },
-    [],
-  );
-
-  return {
-    issues,
-    total,
-    isLoading,
-    error,
-    acceptIssue,
-    declineIssue,
-    refetch: fetchTriage,
-  };
-}
-```
-
----
-
-### `src/hooks/useInbox.ts`
-
-```typescript
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-import { inboxApi, ApiError } from "@/lib/core";
-
-export function useInbox(params: Parameters<typeof inboxApi.list>[0] = {}) {
-  const [notifications, setNotifications] = useState<
-    Awaited<ReturnType<typeof inboxApi.list>>["notifications"]
-  >([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchInbox = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await inboxApi.list(params);
-      setNotifications(data.notifications);
-      setUnreadCount(data.unreadCount);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Gagal memuat inbox.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    fetchInbox();
-  }, [fetchInbox]);
-
-  const markAsRead = useCallback(async (id: string) => {
-    await inboxApi.markAsRead(id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
-    );
-    setUnreadCount((prev) => Math.max(0, prev - 1));
-  }, []);
-
-  const markAllAsRead = useCallback(async () => {
-    await inboxApi.markAllAsRead();
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    setUnreadCount(0);
-  }, []);
-
-  return {
-    notifications,
-    unreadCount,
-    isLoading,
-    error,
-    markAsRead,
-    markAllAsRead,
-    refetch: fetchInbox,
-  };
-}
-```
-
----
-
-### `src/hooks/useAnalytics.ts`
-
-```typescript
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-import { analyticsApi, ApiError } from "@/lib/core";
-
-export function useAnalytics(
-  teamSlug: string,
-  params: Parameters<typeof analyticsApi.get>[1] = {},
-) {
-  const [data, setData] = useState<Awaited<
-    ReturnType<typeof analyticsApi.get>
-  > | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchAnalytics = useCallback(async () => {
-    if (!teamSlug) return;
-    setIsLoading(true);
-    try {
-      const result = await analyticsApi.get(teamSlug, params);
-      setData(result);
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Gagal memuat analytics.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [teamSlug]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    fetchAnalytics();
-  }, [fetchAnalytics]);
-
-  return { data, isLoading, error, refetch: fetchAnalytics };
-}
-```
-
----
-
-## 📁 Fase 5 — Update Setiap Komponen Dashboard
-
-Untuk setiap komponen berikut, ganti import mock data dan lakukan perubahan minimal yang diperlukan. **Jangan ubah tampilan atau struktur JSX** — hanya ubah sumber data.
-
-### Pattern Umum
-
-**Sebelum** (menggunakan mock):
-
-```typescript
-import { mockIssues } from "@/lib/mock-data";
-// ...
-const issues = mockIssues.filter((i) => i.teamSlug === teamSlug);
-```
-
-**Sesudah** (menggunakan hook):
-
-```typescript
-import { useIssues } from '@/hooks/useIssues'
-// ...
-const { issues, isLoading, error } = useIssues(teamSlug)
-if (isLoading) return <LoadingSkeleton />
-if (error) return <ErrorState message={error} />
-```
-
----
-
-### Daftar Komponen yang Perlu Diupdate
-
-#### `src/app/pages/[teamSlug]/issues/page.tsx`
-
-```typescript
-// Ganti mock → useIssues
-import { useIssues } from "@/hooks/useIssues";
-
-// Params dari Next.js App Router:
-const { teamSlug } = await params; // atau use(params) di client component
-const { issues, isLoading, error, createIssue, updateIssue, deleteIssue } =
-  useIssues(teamSlug);
-```
-
-#### `src/app/pages/[teamSlug]/triage/page.tsx`
-
-```typescript
-import { useTriage } from "@/hooks/useTriage";
-const { issues, isLoading, error, acceptIssue, declineIssue } =
-  useTriage(teamSlug);
-```
-
-#### `src/app/pages/[teamSlug]/backlog/page.tsx`
-
-```typescript
-// Backlog = issues dengan status 'backlog'
-import { useIssues } from "@/hooks/useIssues";
-const { issues, isLoading, error } = useIssues(teamSlug, { status: "backlog" });
-```
-
-#### `src/app/pages/[teamSlug]/planning/page.tsx`
-
-```typescript
-// Planning = issues dengan status 'todo' atau sprint planning
-import { useIssues } from "@/hooks/useIssues";
-const { issues, isLoading, error } = useIssues(teamSlug, {
-  status: "todo,in_progress",
-});
-```
-
-#### `src/app/pages/[teamSlug]/execution/page.tsx`
-
-```typescript
-import { useIssues } from "@/hooks/useIssues";
-const { issues, isLoading, error } = useIssues(teamSlug, {
-  status: "in_progress,in_review",
-});
-```
-
-#### `src/app/pages/[teamSlug]/analytics/page.tsx`
-
-```typescript
-import { useAnalytics } from "@/hooks/useAnalytics";
-const { data, isLoading, error } = useAnalytics(teamSlug);
-```
-
-#### `src/app/pages/[teamSlug]/team/page.tsx`
-
-```typescript
-import { useTeamMembers } from "@/hooks/useTeams";
-const { members, isLoading, error } = useTeamMembers(teamSlug);
-```
-
-#### `src/app/pages/[teamSlug]/settings/page.tsx`
-
-```typescript
-import { useTeamSettings } from "@/hooks/useTeams";
-const { settings, isLoading, isSaving, error, updateSettings } =
-  useTeamSettings(teamSlug);
-```
-
-#### `src/app/pages/inbox/page.tsx`
-
-```typescript
-import { useInbox } from "@/hooks/useInbox";
-const {
-  notifications,
-  unreadCount,
-  isLoading,
-  error,
-  markAsRead,
-  markAllAsRead,
-} = useInbox();
-```
-
-#### `src/components/layout/Sidebar.tsx`
-
-```typescript
-// Ganti mock teams dengan useTeams
-import { useTeams } from "@/hooks/useTeams";
-const { teams, isLoading } = useTeams();
-```
-
-#### `src/components/layout/Navbar.tsx`
-
-```typescript
-// Ganti mock user dengan useAuth + unread count dengan useInbox
-import { useAuth } from "@/hooks/useAuth";
-import { useInbox } from "@/hooks/useInbox";
-const { user, logout } = useAuth();
-const { unreadCount } = useInbox({ unread: true, limit: 1 });
-```
-
-#### `src/components/auth/LoginForm.tsx`
-
-```typescript
-import { useAuth } from "@/hooks/useAuth";
-const { login, register, isLoading, error, clearError } = useAuth();
-```
-
----
-
-## 📁 Fase 6 — Hapus File Mock
-
-Setelah semua komponen dan hook di atas selesai diupdate dan tidak ada TypeScript error, lakukan langkah berikut:
-
-**1. Hapus file mock data:**
+## LANGKAH 9 — Deploy
 
 ```bash
-rm src/lib/mock-data.ts
+cd apps/server
+
+# Install Vercel CLI
+bun add -g vercel
+
+# Login
+vercel login
+
+# Preview deploy (untuk test)
+vercel
+
+# Production deploy
+vercel --prod
 ```
 
-**2. Hapus file api.ts lama** (sudah digantikan penuh oleh `lib/core`):
+---
+
+## Verifikasi
 
 ```bash
-rm src/lib/api.ts
+# 1. Health check — pastikan "runtime" menunjukkan Bun, bukan Node.js
+curl https://your-backend.vercel.app/health
+# Expected: { "status": "ok", "runtime": "bun 1.x.x", "timestamp": "..." }
+
+# 2. Test auth
+curl -X POST https://your-backend.vercel.app/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
+# Expected: { "user": {...}, "accessToken": "..." }
+
+# 3. Test CORS dari browser (buka console di frontend)
+fetch('https://your-backend.vercel.app/health')
+  .then(r => r.json()).then(console.log)
+# Expected: tidak ada CORS error
 ```
 
-**3. Cari sisa import yang mengarah ke kedua file tersebut:**
+**Vercel Dashboard checklist:**
 
-```bash
-grep -r "mock-data" src/ --include="*.ts" --include="*.tsx"
-grep -r "from '@/lib/api'" src/ --include="*.ts" --include="*.tsx"
-grep -r "from '../lib/api'" src/ --include="*.ts" --include="*.tsx"
 ```
-
-Output dari perintah di atas harus **kosong (tidak ada hasil)**. Jika masih ada, perbaiki dulu sebelum lanjut.
-
----
-
-## 📁 Fase 7 — Verifikasi Akhir
-
-Jalankan seluruh pengecekan berikut secara berurutan:
-
-```bash
-# 1. TypeScript check — harus 0 error
-bun run tsc --noEmit
-
-# 2. Lint check
-bun run lint
-
-# 3. Pastikan tidak ada referensi ke mock-data atau api.ts lama
-grep -r "mock-data\|from '@/lib/api'" src/ --include="*.ts" --include="*.tsx"
-
-# 4. Jalankan dev server dan test manual
-bun dev
-```
-
-### Checklist Fungsional
-
-Buka browser dan verifikasi setiap alur berikut:
-
-- [ ] Register user baru → redirect ke dashboard
-- [ ] Login dengan credentials → redirect ke dashboard
-- [ ] Refresh halaman saat login → tetap login (sesi persisten)
-- [ ] Sidebar menampilkan tim dari API (bukan hardcoded)
-- [ ] Navbar menampilkan nama user dari API
-- [ ] `/pages/[teamSlug]/issues` menampilkan issues dari API
-- [ ] Buat issue baru → muncul di list tanpa refresh halaman
-- [ ] Update status issue (drag atau dropdown) → tersimpan
-- [ ] Hapus issue → hilang dari list
-- [ ] `/pages/[teamSlug]/triage` menampilkan issues belum triage
-- [ ] Accept issue di triage → hilang dari triage list
-- [ ] `/pages/[teamSlug]/settings` menampilkan data dari API
-- [ ] Save settings → sukses dengan feedback visual
-- [ ] `/pages/[teamSlug]/analytics` menampilkan data real
-- [ ] `/pages/[teamSlug]/team` menampilkan member list dari API
-- [ ] `/pages/inbox` menampilkan notifikasi
-- [ ] Logout → clear token → redirect ke landing page
-- [ ] Akses halaman dashboard tanpa token → redirect ke `/`
-
----
-
-## ⚡ Pola Error Handling di Komponen
-
-Setiap komponen yang menggunakan data dari backend **wajib** menangani tiga state:
-
-```tsx
-// Pattern standar — terapkan konsisten di semua halaman
-const { issues, isLoading, error } = useIssues(teamSlug);
-
-if (isLoading) return <LoadingSkeleton />; // atau spinner yang sudah ada
-if (error)
-  return (
-    <div className="flex flex-col items-center gap-2 p-8 text-center">
-      <p className="text-[var(--color-text-muted)]">{error}</p>
-      <button
-        onClick={refetch}
-        className="text-[var(--color-primary)] underline text-sm"
-      >
-        Coba lagi
-      </button>
-    </div>
-  );
-if (!issues.length) return <EmptyState />; // komponen EmptyState yang sudah ada
+□ Functions tab → api/index.ts muncul
+□ Logs tab → tidak ada build error
+□ GET /health → return 200 dengan runtime "bun x.x.x"
+□ Semua env vars sudah di-set
+□ FRONTEND_URL sudah diisi URL frontend yang benar (tanpa trailing slash)
 ```
 
 ---
 
-## 📌 Referensi Cepat — Pemetaan Endpoint ke Hook
+## Bun APIs yang Kini Tersedia di Vercel
 
-| Halaman / Komponen   | Hook                   | Endpoint Backend                                       |
-| -------------------- | ---------------------- | ------------------------------------------------------ |
-| Sidebar              | `useTeams`             | `GET /teams`                                           |
-| Navbar (user)        | `useAuth`              | `GET /users/me`                                        |
-| Navbar (notif count) | `useInbox`             | `GET /inbox?unread=true&limit=1`                       |
-| `/issues`            | `useIssues`            | `GET /teams/:slug/issues`                              |
-| `/triage`            | `useTriage`            | `GET /teams/:slug/triage`                              |
-| `/backlog`           | `useIssues` (filtered) | `GET /teams/:slug/issues?status=backlog`               |
-| `/planning`          | `useIssues` (filtered) | `GET /teams/:slug/issues?status=todo,in_progress`      |
-| `/execution`         | `useIssues` (filtered) | `GET /teams/:slug/issues?status=in_progress,in_review` |
-| `/analytics`         | `useAnalytics`         | `GET /teams/:slug/analytics`                           |
-| `/team`              | `useTeamMembers`       | `GET /teams/:slug/members`                             |
-| `/settings`          | `useTeamSettings`      | `GET /teams/:slug/settings`                            |
-| `/inbox`             | `useInbox`             | `GET /inbox`                                           |
-| `LoginForm`          | `useAuth`              | `POST /auth/login`, `POST /auth/register`              |
+Karena sekarang running di Bun runtime, seluruh Bun API bisa dipakai langsung
+di server code tanpa install package tambahan:
+
+```typescript
+// Contoh yang relevan untuk project ini:
+
+// Hash password — bisa menggantikan bcrypt
+const hashed = await Bun.password.hash(password);
+const valid = await Bun.password.verify(password, hashed);
+
+// File I/O — jika butuh baca/tulis file
+const file = Bun.file("./data.json");
+const content = await file.json();
+
+// Di masa depan: Bun.SQL bisa jadi alternatif Supabase client
+// untuk query langsung ke PostgreSQL tanpa library tambahan
+import { sql } from "bun";
+const users = await sql`SELECT * FROM users WHERE id = ${userId}`;
+```
+
+Ini opsional — tidak perlu diimplementasi sekarang, tapi worth diketahui
+untuk pengembangan berikutnya.
 
 ---
 
-_Dokumen ini dibuat untuk migrasi frontend Amertask dari mock data ke backend ElysiaJS_
-_Versi: 1.0.0 | April 2026_
+## Perbedaan dari Dokumentasi Vercel Deploy Sebelumnya
+
+| Aspek            | Versi Lama (salah)                | Versi Ini (benar)                |
+| ---------------- | --------------------------------- | -------------------------------- |
+| Aktifkan Bun     | `"runtime": "bun"` di `functions` | `"bunVersion": "1.x"` di root    |
+| `buildCommand`   | Perlu ditulis eksplisit           | Tidak perlu — Vercel auto-detect |
+| `installCommand` | Perlu ditulis eksplisit           | Tidak perlu — Vercel auto-detect |
+| Sumber           | Asumsi                            | Artikel resmi bun.com            |
+
+---
+
+## Catatan
+
+**Public beta** — Vercel dan Bun masih aktif mengembangkan integrasi ini.
+Jika ada issue, cek [dokumentasi Bun](https://bun.com/docs) atau
+[Vercel changelog](https://vercel.com/changelog) untuk update terbaru.
+
+**Timeout Google Docs export** — ini bukan masalah runtime, tapi limit Vercel.
+Free tier max 10 detik, Pro tier max 300 detik. Google Docs export butuh ~15-20 detik
+untuk dokumen besar → perlu Vercel Pro atau pisahkan ke background job.
+
+---
+
+_Deploy: ElysiaJS + Bun Runtime → Vercel | Berdasarkan artikel resmi bun.com (28 Oktober 2025)_
