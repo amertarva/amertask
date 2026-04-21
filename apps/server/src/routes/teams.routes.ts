@@ -31,7 +31,7 @@ async function resolveTeamAccess(
     .from("teams")
     .select("id, owner_id")
     .ilike("slug", teamSlug)
-    .maybeSingle();
+    .maybeSingle<{ id: string; owner_id: string }>();
 
   if (teamError || !team) {
     throw errors.notFound("Tim tidak ditemukan");
@@ -41,7 +41,7 @@ async function resolveTeamAccess(
   if (candidateUserIds.includes(team.owner_id)) {
     return {
       teamId: team.id,
-      role: "owner",
+      role: "owner" as const,
     };
   }
 
