@@ -1,0 +1,72 @@
+BACKEND CHANGES - Simplified Architecture
+==========================================
+
+## Changes Made:
+
+1. ✅ REMOVED: refresh_tokens table
+   - Refresh tokens now stateless (JWT only)
+   - No database storage needed
+   - Simpler authentication flow
+
+2. ✅ RENAMED: profiles → users
+   - More intuitive naming
+   - Easier to understand
+   - All references updated
+
+3. ✅ REMOVED: notifications table
+   - Notifications now in-memory
+   - Stored in Map (per user)
+   - Max 100 notifications per user
+   - Lost on server restart (acceptable for notifications)
+   - Ready for WebSocket/SSE integration
+
+## Benefits:
+
+✅ Lighter database (2 tables removed)
+✅ Better performance (less DB queries)
+✅ More scalable (stateless auth)
+✅ Simpler codebase
+✅ No cleanup jobs needed
+
+## Database Tables (Final):
+
+1. users - User profiles
+2. teams - Team information
+3. team_members - Team membership
+4. issues - Issue tracking
+
+Total: 4 tables only!
+
+## Migration Steps:
+
+1. Run database-v3.sql in Supabase SQL Editor
+2. Restart backend server
+3. Test endpoints
+
+## Files Updated:
+
+- database-v3.sql (new schema)
+- src/services/auth.service.ts (removed refresh token logic)
+- src/services/users.service.ts (profiles → users)
+- src/services/teams.service.ts (profiles → users)
+- src/services/issues.service.ts (profiles → users)
+- src/services/notifications.service.ts (in-memory implementation)
+- src/controllers/auth.controller.ts (stateless refresh)
+- src/controllers/inbox.controller.ts (in-memory notifications)
+- src/controllers/issues.controller.ts (sync notification calls)
+- src/routes/auth.routes.ts (removed refreshToken from logout)
+- src/routes/inbox.routes.ts (removed pagination)
+- src/routes/users.routes.ts (fixed TypeScript errors)
+
+## API Changes:
+
+- POST /auth/logout - No longer requires refreshToken in body
+- GET /inbox - No longer has pagination (all in-memory)
+- Notifications are now in-memory (lost on restart)
+
+## Notes:
+
+- Notifications in-memory is acceptable for real-time use case
+- Can be upgraded to Redis/WebSocket later if needed
+- Refresh tokens are stateless - client manages expiry
+- Database is now minimal and focused on core data

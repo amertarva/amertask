@@ -1,0 +1,229 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap");
+@import "tailwindcss";
+
+:root {
+  /* Background - #f8faf8 */
+  --background: 150 20% 98%;
+  --background-secondary: 150 15% 94%;
+  --background-tertiary: 150 12% 90%;
+
+  /* Foreground - #789d8e */
+  --foreground: 158 18% 55%;
+  --foreground-muted: 158 15% 45%;
+  --foreground-subtle: 158 12% 65%;
+
+  /* Text - #2D3436 */
+  --text: 180 9% 20%;
+  --text-muted: 180 7% 35%;
+  --text-subtle: 180 5% 50%;
+
+  /* Other - #636E72 */
+  --other: 200 6% 42%;
+  --other-light: 200 6% 55%;
+  --other-dark: 200 6% 30%;
+
+  /* Card & Surface */
+  --card: 150 20% 98%;
+  --card-foreground: 180 9% 20%;
+  --card-border: 150 12% 88%;
+
+  /* Primary (aksi utama) - #789d8e */
+  --primary: 158 18% 55%;
+  --primary-foreground: 0 0% 100%;
+  --primary-hover: 158 18% 45%;
+
+  /* Secondary - #e9c46a */
+  --secondary: 45 74% 67%;
+  --secondary-foreground: 180 9% 20%;
+  --secondary-hover: 45 74% 57%;
+
+  /* Muted */
+  --muted: 150 15% 94%;
+  --muted-foreground: 158 15% 45%;
+
+  /* Aksen */
+  --accent: 45 74% 67%;
+  --accent-foreground: 180 9% 20%;
+
+  /* Status Warna */
+  --status-todo: 200 6% 55%;
+  --status-in-progress: 45 74% 67%;
+  --status-in-review: 158 18% 55%;
+  --status-done: 142 71% 45%;
+  --status-backlog: 200 6% 42%;
+  --status-cancelled: 0 0% 60%;
+
+  /* Prioritas */
+  --priority-urgent: 0 84% 60%;
+  --priority-high: 25 95% 53%;
+  --priority-medium: 45 74% 67%;
+  --priority-low: 142 71% 45%;
+
+  /* Label / Tag Warna */
+  --label-frontend: 158 18% 55%;
+  --label-backend: 262 83% 58%;
+  --label-design: 330 81% 60%;
+  --label-bug: 0 84% 60%;
+  --label-feature: 142 71% 45%;
+  --label-integrations: 200 98% 39%;
+
+  /* Borders */
+  --border: 150 12% 88%;
+  --border-strong: 200 6% 42%;
+  --input: 150 12% 88%;
+  --ring: 158 18% 55%;
+
+  /* Sidebar */
+  --sidebar-bg: 150 15% 96%;
+  --sidebar-item-hover: 150 12% 92%;
+  --sidebar-item-active: 158 18% 55%;
+
+  /* Radius */
+  --radius: 0.5rem;
+  --radius-sm: 0.25rem;
+  --radius-lg: 0.75rem;
+  --radius-full: 9999px;
+}
+
+.dark {
+  /* Background - #1A1F1D */
+  --background: 156 9% 11%;
+  --background-secondary: 156 9% 14%;
+  --background-tertiary: 156 9% 18%;
+
+  /* Foreground - #88A99B */
+  --foreground: 155 16% 60%;
+  --foreground-muted: 155 16% 50%;
+  --foreground-subtle: 155 16% 40%;
+
+  /* Text - #E8EDEA */
+  --text: 144 12% 92%;
+  --text-muted: 144 12% 80%;
+  --text-subtle: 144 12% 70%;
+
+  /* Other - #A0A8A4 */
+  --other: 150 4% 64%;
+  --other-light: 150 4% 75%;
+  --other-dark: 150 4% 55%;
+
+  /* Card */
+  --card: 156 9% 13%;
+  --card-foreground: 144 12% 92%;
+  --card-border: 156 9% 20%;
+
+  /* Primary - #88A99B */
+  --primary: 155 16% 60%;
+  --primary-foreground: 156 9% 11%;
+  --primary-hover: 155 16% 70%;
+
+  /* Secondary - #F4D35E */
+  --secondary: 47 87% 66%;
+  --secondary-foreground: 156 9% 11%;
+  --secondary-hover: 47 87% 76%;
+
+  /* Muted */
+  --muted: 150 12% 16%;
+  --muted-foreground: 158 15% 50%;
+
+  /* Aksen */
+  --accent: 45 88% 66%;
+  --accent-foreground: 150 12% 11%;
+
+  /* Borders */
+  --border: 150 10% 20%;
+  --border-strong: 150 5% 35%;
+  --input: 150 10% 20%;
+
+  /* Sidebar */
+  --sidebar-bg: 150 12% 10%;
+  --sidebar-item-hover: 150 10% 16%;
+  --sidebar-item-active: 158 18% 60%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family:
+    "Plus Jakarta Sans",
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1;
+}
+
+/* Scrollbar Custom */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--border-strong));
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(150%);
+  }
+}
+
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+@keyframes scale-up {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-up {
+  animation: scale-up 0.2s ease-out forwards;
+}
