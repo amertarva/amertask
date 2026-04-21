@@ -31,7 +31,7 @@ async function resolveTeamAccess(
     .from("teams")
     .select("id, owner_id")
     .ilike("slug", teamSlug)
-    .maybeSingle();
+    .maybeSingle<{ id: string; owner_id: string }>();
 
   if (teamError) {
     throw errors.internal(`Gagal memeriksa tim: ${teamError.message}`);

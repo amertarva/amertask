@@ -144,7 +144,13 @@ async function resolveTeamExportContext(
     .from("teams")
     .select("id, slug, name, owner_id, google_docs_url")
     .ilike("slug", teamSlug)
-    .maybeSingle();
+    .maybeSingle<{
+      id: string;
+      slug: string;
+      name: string;
+      owner_id: string;
+      google_docs_url: string | null;
+    }>();
 
   if (teamError) {
     throw errors.internal(`Gagal memeriksa tim: ${teamError.message}`);
@@ -160,7 +166,7 @@ async function resolveTeamExportContext(
       slug: team.slug,
       name: team.name,
       googleDocsUrl: team.google_docs_url,
-      role: "owner",
+      role: "owner" as const,
     };
   }
 

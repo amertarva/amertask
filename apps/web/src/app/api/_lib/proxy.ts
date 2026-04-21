@@ -1,10 +1,14 @@
-const backendUrlFromEnv = (process.env.BACKEND_URL ?? "")
+const backendUrlFromEnv = (
+  process.env.BACKEND_URL ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  ""
+)
   .trim()
   .replace(/\/$/, "");
 
 if (!backendUrlFromEnv) {
-  throw new Error(
-    "BACKEND_URL belum di-set. Isi BACKEND_URL di environment frontend.",
+  console.warn(
+    "⚠️ BACKEND_URL tidak di-set. Fallback ke NEXT_PUBLIC_API_URL atau akan error saat runtime.",
   );
 }
 
