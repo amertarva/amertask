@@ -1,16 +1,39 @@
 import { tokenStorage } from "./token";
 
-const baseUrlFromEnv = (process.env.NEXT_PUBLIC_API_URL ?? "")
-  .trim()
-  .replace(/\/$/, "");
+const DEFAULT_BASE_URL = "/api";
 
-if (!baseUrlFromEnv) {
-  throw new Error(
-    "NEXT_PUBLIC_API_URL belum di-set. Isi NEXT_PUBLIC_API_URL di environment frontend.",
-  );
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
 }
 
-const BASE_URL = baseUrlFromEnv;
+function normalizeBaseUrl(rawValue: string): string {
+  const trimmed = trimTrailingSlash(rawValue.trim());
+
+  if (!trimmed) {
+    return DEFAULT_BASE_URL;
+  }
+
+  if (trimmed.startsWith("/")) {
+    return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  console.warn(
+    `⚠️ NEXT_PUBLIC_API_URL='${rawValue}' tidak valid (harus URL absolut http/https atau path relatif '/api'). Fallback ke ${DEFAULT_BASE_URL}.`,
+  );
+
+  return DEFAULT_BASE_URL;
+}
+
+function buildApiUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${BASE_URL}${normalizedPath}`;
+}
+
+const BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? "");
 
 console.log("🔧 BASE_URL configured:", BASE_URL);
 
@@ -38,7 +61,7 @@ async function attemptTokenRefresh(): Promise<boolean> {
     if (!refreshToken) return false;
 
     try {
-      const res = await fetch(`${BASE_URL}/auth/refresh`, {
+      const res = await fetch(buildApiUrl("/auth/refresh"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken }),
@@ -70,7 +93,7 @@ export async function apiClient<T = unknown>(
 ): Promise<T> {
   const makeRequest = async (withToken: boolean): Promise<Response> => {
     const token = tokenStorage.getAccess();
-    const url = `${BASE_URL}${path}`;
+    const url = buildApiUrl(path);
 
     console.log("🌐 API Request:", {
       url,

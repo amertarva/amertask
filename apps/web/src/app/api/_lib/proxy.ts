@@ -1,18 +1,53 @@
-const backendUrlFromEnv = (
-  process.env.BACKEND_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  ""
-)
-  .trim()
-  .replace(/\/$/, "");
+function trimTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
 
-if (!backendUrlFromEnv) {
+function normalizeAbsoluteHttpUrl(rawValue: string): string {
+  const trimmed = trimTrailingSlash(rawValue.trim());
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return "";
+  }
+
+  return trimmed;
+}
+
+const backendUrlFromEnv = process.env.BACKEND_URL ?? "";
+const publicApiUrlFromEnv = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+const normalizedBackendUrl = normalizeAbsoluteHttpUrl(backendUrlFromEnv);
+const normalizedPublicApiUrl = normalizeAbsoluteHttpUrl(publicApiUrlFromEnv);
+
+const BACKEND_URL =
+  normalizedBackendUrl ||
+  normalizedPublicApiUrl ||
+  (process.env.NODE_ENV !== "production" ? "http://localhost:3000" : "");
+
+if (backendUrlFromEnv.trim() && !normalizedBackendUrl) {
   console.warn(
-    "⚠️ BACKEND_URL tidak di-set. Fallback ke NEXT_PUBLIC_API_URL atau akan error saat runtime.",
+    `⚠️ BACKEND_URL='${backendUrlFromEnv}' tidak valid. Gunakan URL absolut dengan http/https.`,
   );
 }
 
-const BACKEND_URL = backendUrlFromEnv;
+if (
+  !normalizedBackendUrl &&
+  publicApiUrlFromEnv.trim() &&
+  !normalizedPublicApiUrl
+) {
+  console.warn(
+    `⚠️ NEXT_PUBLIC_API_URL='${publicApiUrlFromEnv}' diabaikan untuk server proxy karena bukan URL absolut.`,
+  );
+}
+
+if (!BACKEND_URL) {
+  console.warn(
+    "⚠️ BACKEND_URL belum valid. Set BACKEND_URL ke URL backend absolut agar route /api/* dapat mem-forward request.",
+  );
+}
 
 export { BACKEND_URL };
 
