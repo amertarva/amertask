@@ -45,7 +45,7 @@ export async function resolveExistingUserId(
     .from("users")
     .select("id")
     .eq("id", userId)
-    .maybeSingle();
+    .maybeSingle<{ id: string }>();
 
   if (userById?.id) {
     return userById.id;
