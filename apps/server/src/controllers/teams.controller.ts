@@ -206,23 +206,23 @@ export const teamsController = {
     const team = await teamsService.updateTeamSettings(teamId, updates);
 
     return {
-      id: team.id,
-      teamId: team.id,
-      name: team.name,
-      slug: team.slug,
-      type: team.type,
-      startDate: team.start_date,
-      endDate: team.end_date,
-      projectManagerId: team.owner_id,
-      company: team.company,
-      workArea: team.work_area,
-      description: team.description,
+      id: (team as any).id,
+      teamId: (team as any).id,
+      name: (team as any).name,
+      slug: (team as any).slug,
+      type: (team as any).type,
+      startDate: (team as any).start_date,
+      endDate: (team as any).end_date,
+      projectManagerId: (team as any).owner_id,
+      company: (team as any).company,
+      workArea: (team as any).work_area,
+      description: (team as any).description,
       integrations: {
-        githubRepo: team.github_repo,
-        googleDocsUrl: team.google_docs_url,
+        githubRepo: (team as any).github_repo,
+        googleDocsUrl: (team as any).google_docs_url,
       },
-      createdAt: team.created_at,
-      updatedAt: team.updated_at,
+      createdAt: (team as any).created_at,
+      updatedAt: (team as any).updated_at,
     };
   },
 

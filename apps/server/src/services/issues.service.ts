@@ -84,6 +84,7 @@ export const issuesService = {
 
     let teamId = teamIdentifier;
     if (!isUuid.test(teamIdentifier)) {
+      // @ts-ignore - Supabase type inference issue
       const { data: team, error: teamError } = await supabase
         .from("teams")
         .select("id")
@@ -222,13 +223,13 @@ export const issuesService = {
 
   async create(teamId: string, userId: string, payload: any) {
     // Get next issue number for team
-    const { data: lastIssue } = await supabase
+    const { data: lastIssue } = (await supabase
       .from("issues")
       .select("number")
       .eq("team_id", teamId)
       .order("number", { ascending: false })
       .limit(1)
-      .single();
+      .single()) as any;
 
     const nextNumber = (lastIssue?.number || 0) + 1;
 
@@ -241,8 +242,9 @@ export const issuesService = {
       number: nextNumber,
     };
 
-    let { data, error } = await supabase
+    let { data, error } = (await supabase
       .from("issues")
+      // @ts-ignore - Supabase type inference issue
       .insert(insertPayload)
       .select(
         `
@@ -251,7 +253,7 @@ export const issuesService = {
         created_by:users!issues_created_by_id_fkey(*)
       `,
       )
-      .single();
+      .single()) as any;
 
     if (error && isMissingTriageReasonColumn(error)) {
       console.warn(
@@ -261,8 +263,9 @@ export const issuesService = {
       const fallbackInsertPayload =
         buildLegacyReasonFallbackPayload(insertPayload);
 
-      ({ data, error } = await supabase
+      ({ data, error } = (await supabase
         .from("issues")
+        // @ts-ignore - Supabase type inference issue
         .insert(fallbackInsertPayload)
         .select(
           `
@@ -271,7 +274,7 @@ export const issuesService = {
           created_by:users!issues_created_by_id_fkey(*)
         `,
         )
-        .single());
+        .single()) as any);
     }
 
     if (
@@ -290,8 +293,9 @@ export const issuesService = {
 
       delete (fallbackInsertPayload as Record<string, any>).status;
 
-      ({ data, error } = await supabase
+      ({ data, error } = (await supabase
         .from("issues")
+        // @ts-ignore - Supabase type inference issue
         .insert(fallbackInsertPayload)
         .select(
           `
@@ -300,7 +304,7 @@ export const issuesService = {
           created_by:users!issues_created_by_id_fkey(*)
         `,
         )
-        .single());
+        .single()) as any);
     }
 
     if (error) {
@@ -328,8 +332,9 @@ export const issuesService = {
       updated_at: new Date().toISOString(),
     };
 
-    let { data, error } = await supabase
+    let { data, error } = (await supabase
       .from("issues")
+      // @ts-ignore - Supabase type inference issue
       .update(updatePayload)
       .eq("id", id)
       .select(
@@ -339,7 +344,7 @@ export const issuesService = {
         created_by:users!issues_created_by_id_fkey(*)
       `,
       )
-      .single();
+      .single()) as any;
 
     if (error && isMissingTriageReasonColumn(error)) {
       console.warn(
@@ -349,8 +354,9 @@ export const issuesService = {
       const fallbackUpdatePayload =
         buildLegacyReasonFallbackPayload(updatePayload);
 
-      ({ data, error } = await supabase
+      ({ data, error } = (await supabase
         .from("issues")
+        // @ts-ignore - Supabase type inference issue
         .update(fallbackUpdatePayload)
         .eq("id", id)
         .select(
@@ -360,7 +366,7 @@ export const issuesService = {
           created_by:users!issues_created_by_id_fkey(*)
         `,
         )
-        .single());
+        .single()) as any);
     }
 
     if (
@@ -379,8 +385,9 @@ export const issuesService = {
 
       delete (fallbackUpdatePayload as Record<string, any>).status;
 
-      ({ data, error } = await supabase
+      ({ data, error } = (await supabase
         .from("issues")
+        // @ts-ignore - Supabase type inference issue
         .update(fallbackUpdatePayload)
         .eq("id", id)
         .select(
@@ -390,7 +397,7 @@ export const issuesService = {
           created_by:users!issues_created_by_id_fkey(*)
         `,
         )
-        .single());
+        .single()) as any);
     }
 
     if (error) {

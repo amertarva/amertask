@@ -34,48 +34,49 @@ export const analyticsService = {
       throw errors.internal(`Gagal mengambil data analytics: ${error.message}`);
     }
 
-    const allIssues = issues || [];
+    const allIssues = (issues || []) as any[];
 
     // Summary
     const summary = {
       totalIssues: allIssues.length,
-      openIssues: allIssues.filter((i) =>
+      openIssues: allIssues.filter((i: any) =>
         ["backlog", "todo", "bug"].includes(i.status),
       ).length,
-      inProgress: allIssues.filter((i) => i.status === "in_progress").length,
-      completed: allIssues.filter((i) => i.status === "done").length,
-      cancelled: allIssues.filter((i) => i.status === "cancelled").length,
+      inProgress: allIssues.filter((i: any) => i.status === "in_progress")
+        .length,
+      completed: allIssues.filter((i: any) => i.status === "done").length,
+      cancelled: allIssues.filter((i: any) => i.status === "cancelled").length,
     };
 
     // By status
     const byStatus = [
       {
         status: "backlog",
-        count: allIssues.filter((i) => i.status === "backlog").length,
+        count: allIssues.filter((i: any) => i.status === "backlog").length,
       },
       {
         status: "todo",
-        count: allIssues.filter((i) => i.status === "todo").length,
+        count: allIssues.filter((i: any) => i.status === "todo").length,
       },
       {
         status: "in_progress",
-        count: allIssues.filter((i) => i.status === "in_progress").length,
+        count: allIssues.filter((i: any) => i.status === "in_progress").length,
       },
       {
         status: "in_review",
-        count: allIssues.filter((i) => i.status === "in_review").length,
+        count: allIssues.filter((i: any) => i.status === "in_review").length,
       },
       {
         status: "bug",
-        count: allIssues.filter((i) => i.status === "bug").length,
+        count: allIssues.filter((i: any) => i.status === "bug").length,
       },
       {
         status: "done",
-        count: allIssues.filter((i) => i.status === "done").length,
+        count: allIssues.filter((i: any) => i.status === "done").length,
       },
       {
         status: "cancelled",
-        count: allIssues.filter((i) => i.status === "cancelled").length,
+        count: allIssues.filter((i: any) => i.status === "cancelled").length,
       },
     ];
 
@@ -83,25 +84,25 @@ export const analyticsService = {
     const byPriority = [
       {
         priority: "urgent",
-        count: allIssues.filter((i) => i.priority === "urgent").length,
+        count: allIssues.filter((i: any) => i.priority === "urgent").length,
       },
       {
         priority: "high",
-        count: allIssues.filter((i) => i.priority === "high").length,
+        count: allIssues.filter((i: any) => i.priority === "high").length,
       },
       {
         priority: "medium",
-        count: allIssues.filter((i) => i.priority === "medium").length,
+        count: allIssues.filter((i: any) => i.priority === "medium").length,
       },
       {
         priority: "low",
-        count: allIssues.filter((i) => i.priority === "low").length,
+        count: allIssues.filter((i: any) => i.priority === "low").length,
       },
     ];
 
     // By assignee
     const assigneeMap = new Map();
-    allIssues.forEach((issue) => {
+    allIssues.forEach((issue: any) => {
       if (issue.assignee) {
         const assignee = issue.assignee as any;
         const key = assignee.id;
@@ -121,7 +122,7 @@ export const analyticsService = {
 
     // Completion trend (simplified - group by date)
     const completionMap = new Map();
-    allIssues.forEach((issue) => {
+    allIssues.forEach((issue: any) => {
       if (!issue.created_at || typeof issue.created_at !== "string") {
         return;
       }

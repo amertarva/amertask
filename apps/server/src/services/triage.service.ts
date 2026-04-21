@@ -43,8 +43,9 @@ export const triageService = {
       throw errors.badRequest("id issue tidak valid");
     }
 
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from("issues")
+      // @ts-ignore - Supabase type inference issue
       .update({
         is_triaged: true,
         status: "in_progress",
@@ -55,20 +56,7 @@ export const triageService = {
       })
       .eq("id", id)
       .select("*")
-      .maybeSingle<{
-        id: string;
-        number: number;
-        team_id: string;
-        title: string;
-        description: string | null;
-        status: string;
-        priority: string;
-        assignee_id: string | null;
-        created_by_id: string;
-        is_triaged: boolean;
-        created_at: string;
-        updated_at: string;
-      }>();
+      .maybeSingle()) as any;
 
     if (error) {
       console.error("❌ triageService.acceptIssue query error:", {
@@ -91,8 +79,9 @@ export const triageService = {
       throw errors.badRequest("id issue tidak valid");
     }
 
-    const { data, error } = await supabase
+    const { data, error } = (await supabase
       .from("issues")
+      // @ts-ignore - Supabase type inference issue
       .update({
         is_triaged: true,
         status: "cancelled",
@@ -101,7 +90,7 @@ export const triageService = {
       })
       .eq("id", id)
       .select("id")
-      .maybeSingle<{ id: string }>();
+      .maybeSingle()) as any;
 
     if (error) {
       console.error("❌ triageService.declineIssue query error:", {

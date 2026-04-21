@@ -13,10 +13,14 @@ export const issuesController = {
   },
 
   async create({ teamId, currentUser, body }: any) {
-    const issue = await issuesService.create(teamId, currentUser.sub, body);
+    const issue = (await issuesService.create(
+      teamId,
+      currentUser.sub,
+      body,
+    )) as any;
 
     // Create notification if assigned (in-memory)
-    if (issue.assignee_id && issue.assignee_id !== currentUser.sub) {
+    if (issue && issue.assignee_id && issue.assignee_id !== currentUser.sub) {
       notificationsService.createNotification({
         userId: issue.assignee_id,
         type: "issue_assigned",
@@ -31,11 +35,12 @@ export const issuesController = {
   },
 
   async update({ params, body, currentUser }: any) {
-    const oldIssue = await issuesService.getById(params.id);
-    const issue = await issuesService.update(params.id, body);
+    const oldIssue = (await issuesService.getById(params.id)) as any;
+    const issue = (await issuesService.update(params.id, body)) as any;
 
     // Create notification if assignee changed (in-memory)
     if (
+      issue &&
       body.assigneeId &&
       body.assigneeId !== oldIssue.assignee_id &&
       body.assigneeId !== currentUser.sub
