@@ -3,10 +3,21 @@ import { verifyJWT } from "../lib/jwt";
 import { errors, type AppError } from "../lib/errors";
 import { resolveCandidateUserIds } from "../lib/userIdentity";
 import { supabase } from "../lib/supabase";
-import {
-  googleDocsService,
-  type ExportType,
-} from "../services/google-docs.service";
+
+type ExportType = "planning" | "backlog" | "execution";
+type GoogleDocsServiceModule = typeof import("../services/google-docs.service");
+
+let googleDocsServiceModulePromise: Promise<GoogleDocsServiceModule> | null =
+  null;
+
+async function getGoogleDocsService() {
+  if (!googleDocsServiceModulePromise) {
+    googleDocsServiceModulePromise = import("../services/google-docs.service");
+  }
+
+  const module = await googleDocsServiceModulePromise;
+  return module.googleDocsService;
+}
 
 type TeamRole = "owner" | "pm" | "admin" | "member";
 
@@ -280,6 +291,7 @@ export const exportRoutes = new Elysia({
     try {
       const currentUser = await verifyAuth(headers as Record<string, string>);
       const team = await resolveTeamExportContext(teamSlug, currentUser);
+      const googleDocsService = await getGoogleDocsService();
 
       if (!team.googleDocsUrl) {
         set.status = 422;

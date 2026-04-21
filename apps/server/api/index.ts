@@ -1,10 +1,6 @@
 import { app } from "../src/app";
 
-// Named fetch export keeps Bun-compatible shape available.
-export const fetch = (request: Request) => app.handle(request);
-
-// Default handler keeps Vercel function invocation explicit and adds crash isolation.
-export default async function handler(request: Request): Promise<Response> {
+async function handleRequest(request: Request): Promise<Response> {
   try {
     return await app.handle(request);
   } catch (error) {
@@ -22,3 +18,10 @@ export default async function handler(request: Request): Promise<Response> {
     );
   }
 }
+
+// Vercel Node.js runtime Web Standard entrypoint.
+export default {
+  async fetch(request: Request) {
+    return handleRequest(request);
+  },
+};
