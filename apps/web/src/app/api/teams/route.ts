@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3000";
+import { BACKEND_URL } from "@/app/api/_lib/proxy";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 

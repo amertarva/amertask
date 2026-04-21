@@ -10,15 +10,23 @@ import { inboxRoutes } from "./routes/inbox.routes";
 import { analyticsRoutes } from "./routes/analytics.routes";
 import { exportRoutes } from "./routes/export.routes";
 import { AppError } from "./lib/errors";
+import { getSupabaseHealth } from "./lib/supabase";
 
-const allowedOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3001")
+const allowedOrigins = (process.env.FRONTEND_URL ?? "")
   .split(",")
-  .map((o) => o.trim());
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+if (allowedOrigins.length === 0) {
+  console.warn(
+    "⚠️ FRONTEND_URL belum di-set. CORS origin akan diblokir sampai env diisi.",
+  );
+}
 
 export const app = new Elysia()
   .use(
     cors({
-      origin: allowedOrigins,
+      origin: allowedOrigins.length > 0 ? allowedOrigins : false,
       credentials: true,
       allowedHeaders: ["Content-Type", "Authorization"],
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
@@ -51,12 +59,30 @@ export const app = new Elysia()
     version: "1.0.0",
     status: "running",
   }))
-  .get("/health", () => ({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    runtime:
-      typeof Bun !== "undefined" ? `bun ${Bun.version}` : process.version,
-  }))
+  .get("/health", () => {
+    const supabaseHealth = getSupabaseHealth();
+
+    return {
+      status: supabaseHealth.configured ? "ok" : "degraded",
+      timestamp: new Date().toISOString(),
+      runtime:
+        typeof Bun !== "undefined" ? `bun ${Bun.version}` : process.version,
+      services: {
+        supabase: supabaseHealth.configured ? "ok" : "misconfigured",
+      },
+      checks: {
+        jwtSecret:
+          typeof process.env.JWT_SECRET === "string" &&
+          process.env.JWT_SECRET.length >= 32,
+        frontendUrl: Boolean(process.env.FRONTEND_URL),
+      },
+      ...(process.env.NODE_ENV !== "production" && {
+        diagnostics: {
+          missingEnv: supabaseHealth.missing,
+        },
+      }),
+    };
+  })
   // Routes
   .use(authRoutes)
   .use(usersRoutes)

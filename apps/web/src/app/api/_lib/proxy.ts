@@ -1,4 +1,14 @@
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3000";
+const backendUrlFromEnv = (process.env.BACKEND_URL ?? "")
+  .trim()
+  .replace(/\/$/, "");
+
+if (!backendUrlFromEnv) {
+  throw new Error(
+    "BACKEND_URL belum di-set. Isi BACKEND_URL di environment frontend.",
+  );
+}
+
+const BACKEND_URL = backendUrlFromEnv;
 
 export { BACKEND_URL };
 

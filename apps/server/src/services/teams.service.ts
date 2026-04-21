@@ -12,9 +12,20 @@ type TeamInviteRole = "admin" | "member" | "pm";
 const TEAM_INVITE_TYPE = "team_invite_v1";
 const DEFAULT_INVITE_EXPIRY_HOURS = 72;
 const MAX_INVITE_EXPIRY_HOURS = 24 * 7;
-const FRONTEND_URL = (
-  process.env.FRONTEND_URL || "http://localhost:3001"
-).replace(/\/$/, "");
+
+function getFrontendBaseUrl(): string {
+  const frontendUrl = (process.env.FRONTEND_URL ?? "")
+    .trim()
+    .replace(/\/$/, "");
+
+  if (!frontendUrl) {
+    throw errors.internal(
+      "FRONTEND_URL belum di-set. Isi environment variable ini untuk membuat link undangan.",
+    );
+  }
+
+  return frontendUrl;
+}
 
 function isTeamInviteRole(role: string): role is TeamInviteRole {
   return role === "admin" || role === "member" || role === "pm";
@@ -692,7 +703,7 @@ export const teamsService = {
 
     return {
       inviteToken,
-      inviteUrl: `${FRONTEND_URL}/join/${encodeURIComponent(team.slug)}?invite=${encodeURIComponent(inviteToken)}`,
+      inviteUrl: `${getFrontendBaseUrl()}/join/${encodeURIComponent(team.slug)}?invite=${encodeURIComponent(inviteToken)}`,
       role: inviteRole,
       expiresAt,
       team: {

@@ -6,6 +6,7 @@ const supabaseServiceKey =
   process.env.SUPABASE_SERVICE_KEY ||
   "";
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
+const runningInProduction = process.env.NODE_ENV === "production";
 
 function decodeJwtClaims(token: string): {
   role: string | null;
@@ -44,6 +45,37 @@ function getSupabaseUrlRef(url: string): string | null {
 const supabaseKeyClaims = decodeJwtClaims(supabaseServiceKey);
 const supabaseUrlRef = getSupabaseUrlRef(supabaseUrl);
 
+function createThrowingClient(label: "service" | "anon", error: Error) {
+  return new Proxy(
+    {},
+    {
+      get() {
+        throw new Error(`[supabase:${label}] ${error.message}`);
+      },
+    },
+  ) as ReturnType<typeof createClient>;
+}
+
+function getSupabaseEnvIssues(): string[] {
+  const issues: string[] = [];
+
+  if (!supabaseUrl) {
+    issues.push("SUPABASE_URL tidak ditemukan");
+  }
+
+  if (!supabaseServiceKey) {
+    issues.push(
+      "SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SERVICE_KEY tidak ditemukan",
+    );
+  }
+
+  if (!supabaseAnonKey) {
+    issues.push("SUPABASE_ANON_KEY tidak ditemukan");
+  }
+
+  return issues;
+}
+
 if (!supabaseServiceKey) {
   console.warn(
     "⚠️ SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SERVICE_KEY tidak ditemukan. Query backend dapat terfilter RLS.",
@@ -63,24 +95,75 @@ if (
   supabaseKeyClaims.ref !== supabaseUrlRef
 ) {
   console.warn(
-    `⚠️ Supabase URL ref (${supabaseUrlRef}) tidak cocok dengan key ref (${supabaseKeyClaims.ref}). Pastikan URL dan key dari project yang sama.`,
+    `Supabase URL ref (${supabaseUrlRef}) tidak cocok dengan key ref (${supabaseKeyClaims.ref}). Pastikan URL dan key dari project yang sama.`,
   );
 }
 
-// Client dengan service role — bypass RLS, untuk backend usage
-export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+let supabaseInitError: Error | null = null;
 
-// Client dengan anon key — untuk operasi yang perlu RLS
-export const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseEnvIssues = getSupabaseEnvIssues();
+if (supabaseEnvIssues.length > 0) {
+  const envError = new Error(
+    `[supabase] Environment variables tidak lengkap: ${supabaseEnvIssues.join(", ")}`,
+  );
+
+  if (runningInProduction) {
+    supabaseInitError = envError;
+    console.error(envError.message);
+  } else {
+    console.warn(envError.message);
+  }
+}
+
+let serviceClient: ReturnType<typeof createClient>;
+let anonClient: ReturnType<typeof createClient>;
+
+if (runningInProduction && supabaseEnvIssues.length > 0) {
+  const initError =
+    supabaseInitError ??
+    new Error(
+      `[supabase] Environment variables tidak lengkap: ${supabaseEnvIssues.join(", ")}`,
+    );
+
+  supabaseInitError = initError;
+  serviceClient = createThrowingClient("service", initError);
+  anonClient = createThrowingClient("anon", initError);
+} else {
+  try {
+    // Client dengan service role — bypass RLS, untuk backend usage
+    serviceClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // Client dengan anon key — untuk operasi yang perlu RLS
+    anonClient = createClient(supabaseUrl, supabaseAnonKey);
+  } catch (error) {
+    const normalizedError =
+      error instanceof Error ? error : new Error(String(error));
+    supabaseInitError = normalizedError;
+
+    console.error("❌ [supabase:init]", normalizedError.message);
+
+    serviceClient = createThrowingClient("service", normalizedError);
+    anonClient = createThrowingClient("anon", normalizedError);
+  }
+}
+
+export const supabase = serviceClient;
+export const supabaseAnon = anonClient;
+
+export function getSupabaseInitError(): Error | null {
+  return supabaseInitError;
+}
+
+export function getSupabaseHealth() {
+  return {
+    configured: !supabaseInitError && supabaseEnvIssues.length === 0,
+    missing: supabaseEnvIssues,
+  };
+}
 
 // Helper to check if Supabase is configured
 export function isSupabaseConfigured(): boolean {
-  return !!(
-    supabaseUrl &&
-    supabaseServiceKey &&
-    supabaseAnonKey &&
-    supabaseUrl !== "https://placeholder.supabase.co"
-  );
+  return getSupabaseHealth().configured;
 }

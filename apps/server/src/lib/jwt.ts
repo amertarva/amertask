@@ -1,9 +1,32 @@
 import { SignJWT, jwtVerify } from "jose";
 import type { JWTPayload } from "../types";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || "super-secret-min-32-chars-long-string";
-const secret = new TextEncoder().encode(JWT_SECRET);
+let cachedJwtSecret: Uint8Array | null = null;
+
+function getJwtSecret(): Uint8Array {
+  if (cachedJwtSecret) {
+    return cachedJwtSecret;
+  }
+
+  const secret = process.env.JWT_SECRET;
+  if (secret && secret.length >= 32) {
+    cachedJwtSecret = new TextEncoder().encode(secret);
+    return cachedJwtSecret;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    const fallbackSecret = "super-secret-min-32-chars-long-string";
+
+    console.warn(
+      "JWT_SECRET tidak ditemukan/terlalu pendek. Menggunakan fallback khusus development.",
+    );
+
+    cachedJwtSecret = new TextEncoder().encode(fallbackSecret);
+    return cachedJwtSecret;
+  }
+
+  throw new Error("JWT_SECRET wajib di production dan minimal 32 karakter.");
+}
 
 function readRequiredStringClaim(value: unknown, field: string): string {
   if (typeof value === "string" && value.trim().length > 0) {
@@ -34,6 +57,8 @@ export async function signJWT(
   payload: JWTPayload,
   expiresIn: string,
 ): Promise<string> {
+  const secret = getJwtSecret();
+
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -42,6 +67,7 @@ export async function signJWT(
 }
 
 export async function verifyJWT(token: string): Promise<JWTPayload> {
+  const secret = getJwtSecret();
   const { payload } = await jwtVerify(token, secret);
 
   return {

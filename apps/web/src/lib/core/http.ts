@@ -1,11 +1,16 @@
 import { tokenStorage } from "./token";
 
-// Use Next.js API routes as proxy to backend
-// Force /api prefix for development
-const BASE_URL =
-  typeof window !== "undefined"
-    ? process.env.NEXT_PUBLIC_API_URL || "/api"
-    : "/api";
+const baseUrlFromEnv = (process.env.NEXT_PUBLIC_API_URL ?? "")
+  .trim()
+  .replace(/\/$/, "");
+
+if (!baseUrlFromEnv) {
+  throw new Error(
+    "NEXT_PUBLIC_API_URL belum di-set. Isi NEXT_PUBLIC_API_URL di environment frontend.",
+  );
+}
+
+const BASE_URL = baseUrlFromEnv;
 
 console.log("🔧 BASE_URL configured:", BASE_URL);
 
