@@ -88,7 +88,7 @@ export const issuesService = {
         .from("teams")
         .select("id")
         .ilike("slug", teamIdentifier)
-        .maybeSingle();
+        .maybeSingle<{ id: string }>();
 
       if (teamError) {
         console.error("Error resolving team by slug:", {
@@ -258,9 +258,8 @@ export const issuesService = {
         "[issuesService.create] Kolom triage_reason belum tersedia, fallback ke reason",
       );
 
-      const fallbackInsertPayload = buildLegacyReasonFallbackPayload(
-        insertPayload,
-      );
+      const fallbackInsertPayload =
+        buildLegacyReasonFallbackPayload(insertPayload);
 
       ({ data, error } = await supabase
         .from("issues")
@@ -275,7 +274,11 @@ export const issuesService = {
         .single());
     }
 
-    if (error && dbPayload.status === "bug" && isUnsupportedBugStatusError(error)) {
+    if (
+      error &&
+      dbPayload.status === "bug" &&
+      isUnsupportedBugStatusError(error)
+    ) {
       console.warn(
         "[issuesService.create] Status bug belum didukung DB, fallback update tanpa ubah status",
       );
@@ -343,9 +346,8 @@ export const issuesService = {
         "[issuesService.update] Kolom triage_reason belum tersedia, fallback ke reason",
       );
 
-      const fallbackUpdatePayload = buildLegacyReasonFallbackPayload(
-        updatePayload,
-      );
+      const fallbackUpdatePayload =
+        buildLegacyReasonFallbackPayload(updatePayload);
 
       ({ data, error } = await supabase
         .from("issues")
@@ -361,7 +363,11 @@ export const issuesService = {
         .single());
     }
 
-    if (error && dbPayload.status === "bug" && isUnsupportedBugStatusError(error)) {
+    if (
+      error &&
+      dbPayload.status === "bug" &&
+      isUnsupportedBugStatusError(error)
+    ) {
       console.warn(
         "[issuesService.update] Status bug belum didukung DB, fallback update tanpa ubah status",
       );

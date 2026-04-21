@@ -92,7 +92,7 @@ async function getInviteTeam(teamId: string, expectedSlug?: string) {
     .from("teams")
     .select("id, slug, name")
     .eq("id", teamId)
-    .maybeSingle();
+    .maybeSingle<{ id: string; slug: string; name: string }>();
 
   if (error) {
     throw errors.internal(`Gagal mengambil tim undangan: ${error.message}`);
@@ -267,7 +267,7 @@ export const teamsService = {
       .from("teams")
       .select("id")
       .ilike("slug", payload.slug)
-      .maybeSingle();
+      .maybeSingle<{ id: string }>();
 
     if (existing) {
       throw errors.conflict("Slug tim sudah digunakan");
@@ -310,7 +310,23 @@ export const teamsService = {
       .from("teams")
       .select("*")
       .ilike("slug", slug)
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        slug: string;
+        name: string;
+        avatar: string | null;
+        owner_id: string;
+        type: string;
+        start_date: string | null;
+        end_date: string | null;
+        company: string | null;
+        work_area: string | null;
+        description: string | null;
+        github_repo: string | null;
+        google_docs_url: string | null;
+        created_at: string;
+        updated_at: string;
+      }>();
 
     if (error || !data) {
       throw errors.notFound("Tim tidak ditemukan");
@@ -408,7 +424,18 @@ export const teamsService = {
       )
       .eq("team_id", teamId)
       .eq("user_id", normalizedMemberUserId)
-      .maybeSingle();
+      .maybeSingle<{
+        user_id: string;
+        role: string;
+        joined_at: string;
+        user: {
+          id: string;
+          name: string;
+          email: string;
+          avatar: string | null;
+          initials: string;
+        };
+      }>();
 
     if (error) {
       throw errors.internal(`Gagal mengambil detail member: ${error.message}`);
@@ -450,7 +477,7 @@ export const teamsService = {
       .from("teams")
       .select("id, owner_id")
       .eq("id", params.teamId)
-      .maybeSingle();
+      .maybeSingle<{ id: string; owner_id: string }>();
 
     if (teamError) {
       throw errors.internal(`Gagal memeriksa tim: ${teamError.message}`);
@@ -495,7 +522,11 @@ export const teamsService = {
         )
         .eq("team_id", params.teamId)
         .eq("user_id", memberUserId)
-        .maybeSingle();
+        .maybeSingle<{
+          user_id: string;
+          role: string;
+          user: { id: string; name: string; email: string };
+        }>();
 
     if (targetMembershipError) {
       throw errors.internal(
@@ -622,7 +653,7 @@ export const teamsService = {
       .from("teams")
       .select("id, slug, name")
       .eq("id", teamId)
-      .maybeSingle();
+      .maybeSingle<{ id: string; slug: string; name: string }>();
 
     if (lookupError) {
       throw errors.internal(`Gagal memeriksa proyek: ${lookupError.message}`);

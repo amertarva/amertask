@@ -55,7 +55,20 @@ export const triageService = {
       })
       .eq("id", id)
       .select("*")
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        number: number;
+        team_id: string;
+        title: string;
+        description: string | null;
+        status: string;
+        priority: string;
+        assignee_id: string | null;
+        created_by_id: string;
+        is_triaged: boolean;
+        created_at: string;
+        updated_at: string;
+      }>();
 
     if (error) {
       console.error("❌ triageService.acceptIssue query error:", {
@@ -88,7 +101,7 @@ export const triageService = {
       })
       .eq("id", id)
       .select("id")
-      .maybeSingle();
+      .maybeSingle<{ id: string }>();
 
     if (error) {
       console.error("❌ triageService.declineIssue query error:", {

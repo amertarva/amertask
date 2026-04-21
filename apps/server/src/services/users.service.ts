@@ -19,7 +19,15 @@ export const usersService = {
       .from("users")
       .select("*")
       .eq("id", resolvedUserId)
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        name: string;
+        email: string;
+        avatar: string | null;
+        initials: string;
+        created_at: string;
+        updated_at: string;
+      }>();
 
     if (error) {
       console.error("❌ Error fetching user:", error);
@@ -154,7 +162,15 @@ export const usersService = {
       })
       .eq("id", resolvedUserId)
       .select()
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        name: string;
+        email: string;
+        avatar: string | null;
+        initials: string;
+        created_at: string;
+        updated_at: string;
+      }>();
 
     if (error) {
       console.error("❌ Error updating user:", error);

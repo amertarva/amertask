@@ -36,7 +36,7 @@ export const teamAccessMiddleware = new Elysia({ name: "teamAccess" }).derive(
       .from("teams")
       .select("id, owner_id")
       .ilike("slug", teamSlug)
-      .maybeSingle();
+      .maybeSingle<{ id: string; owner_id: string }>();
 
     console.log("🔍 Team lookup:", {
       found: !!team,

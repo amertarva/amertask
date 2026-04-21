@@ -137,7 +137,22 @@ export const teamsController = {
       .from("teams")
       .select("*")
       .eq("id", teamId)
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        name: string;
+        slug: string;
+        type: string;
+        start_date: string | null;
+        end_date: string | null;
+        owner_id: string;
+        company: string | null;
+        work_area: string | null;
+        description: string | null;
+        github_repo: string | null;
+        google_docs_url: string | null;
+        created_at: string;
+        updated_at: string;
+      }>();
 
     if (error || !data) {
       throw errors.notFound("Tim tidak ditemukan");

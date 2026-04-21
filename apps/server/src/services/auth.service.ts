@@ -10,7 +10,7 @@ export const authService = {
       .from("users")
       .select("id")
       .eq("email", email)
-      .maybeSingle();
+      .maybeSingle<{ id: string }>();
 
     if (existing) {
       console.log("⚠️ Email already exists:", email);
@@ -45,7 +45,13 @@ export const authService = {
         email,
       })
       .select()
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        name: string;
+        email: string;
+        avatar: string | null;
+        initials: string;
+      }>();
 
     if (userError) {
       console.error("❌ Failed to create user profile:", userError);
@@ -93,7 +99,13 @@ export const authService = {
       .from("users")
       .select("*")
       .eq("id", data.user.id)
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        name: string;
+        email: string;
+        avatar: string | null;
+        initials: string;
+      }>();
 
     if (userById) {
       console.log("✅ Login successful (by ID):", {
@@ -113,7 +125,13 @@ export const authService = {
       .from("users")
       .select("*")
       .eq("email", email)
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        name: string;
+        email: string;
+        avatar: string | null;
+        initials: string;
+      }>();
 
     if (userByEmail) {
       if (userByEmail.id !== data.user.id) {
@@ -149,7 +167,13 @@ export const authService = {
         email: data.user.email!,
       })
       .select()
-      .maybeSingle();
+      .maybeSingle<{
+        id: string;
+        name: string;
+        email: string;
+        avatar: string | null;
+        initials: string;
+      }>();
 
     if (createError) {
       console.error("❌ Failed to create user profile:", createError);
@@ -159,7 +183,13 @@ export const authService = {
         .from("users")
         .select("*")
         .eq("email", email)
-        .maybeSingle();
+        .maybeSingle<{
+          id: string;
+          name: string;
+          email: string;
+          avatar: string | null;
+          initials: string;
+        }>();
 
       if (finalUser) {
         console.log("✅ Found existing user on retry:", {
