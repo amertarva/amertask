@@ -1,5 +1,19 @@
-import { docs as docsApi, type docs_v1 } from "@googleapis/docs";
-import { GoogleAuth } from "google-auth-library";
+import type { docs_v1 } from "@googleapis/docs";
+
+let _docsApi: typeof import("@googleapis/docs").docs | null = null;
+let _GoogleAuth: typeof import("google-auth-library").GoogleAuth | null = null;
+
+async function loadGoogleDeps() {
+  if (!_docsApi) {
+    const docsModule = await import("@googleapis/docs");
+    _docsApi = docsModule.docs;
+  }
+  if (!_GoogleAuth) {
+    const authModule = await import("google-auth-library");
+    _GoogleAuth = authModule.GoogleAuth;
+  }
+  return { docsApi: _docsApi, GoogleAuth: _GoogleAuth };
+}
 
 export type ExportType = "planning" | "backlog" | "execution";
 
@@ -89,7 +103,7 @@ interface ServiceAccountConfig {
   projectId?: string;
 }
 
-function readServiceAccountConfig(): ServiceAccountConfig {
+function readServiceAccountConfig(): ServiceAccountConfig | null {
   const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (rawJson) {
     try {
@@ -107,9 +121,10 @@ function readServiceAccountConfig(): ServiceAccountConfig {
         };
       }
     } catch {
-      throw new Error(
-        "GOOGLE_SERVICE_ACCOUNT_JSON tidak valid. Pastikan format JSON benar.",
+      console.error(
+        "[google-docs] GOOGLE_SERVICE_ACCOUNT_JSON tidak valid. Pastikan format JSON benar.",
       );
+      return null;
     }
   }
 
@@ -118,9 +133,7 @@ function readServiceAccountConfig(): ServiceAccountConfig {
   const projectId = process.env.GOOGLE_PROJECT_ID;
 
   if (!clientEmail || !privateKey) {
-    throw new Error(
-      "Credential Google Docs belum lengkap. Isi GOOGLE_SERVICE_ACCOUNT_EMAIL dan GOOGLE_PRIVATE_KEY di .env backend.",
-    );
+    return null;
   }
 
   return {
@@ -130,8 +143,15 @@ function readServiceAccountConfig(): ServiceAccountConfig {
   };
 }
 
-function getDocsClient() {
+async function getDocsClient() {
   const serviceAccount = readServiceAccountConfig();
+  if (!serviceAccount) {
+    throw new Error(
+      "Credential Google Docs belum lengkap. Isi GOOGLE_SERVICE_ACCOUNT_JSON atau GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY di environment variables.",
+    );
+  }
+
+  const { docsApi, GoogleAuth } = await loadGoogleDeps();
   const auth = new GoogleAuth({
     credentials: {
       client_email: serviceAccount.clientEmail,
@@ -650,7 +670,7 @@ async function writeSubsectionToDoc(params: {
     sectionSubtitle,
   } = params;
 
-  const docs = getDocsClient();
+  const docs = await getDocsClient();
   const allRows = normalizeRows(headerRow, dataRows);
   const rowCount = allRows.length;
   const columnCount = headerRow.length;
@@ -821,7 +841,7 @@ async function writeSectionToDoc(params: {
     sectionSubtitle,
   } = params;
 
-  const docs = getDocsClient();
+  const docs = await getDocsClient();
   const markers = MARKERS[exportType];
   const allRows = normalizeRows(headerRow, dataRows);
   const rowCount = allRows.length;
@@ -1020,7 +1040,7 @@ export const googleDocsService = {
     items: BacklogItem[],
     teamName: string,
   ): Promise<void> {
-    const docs = getDocsClient();
+    const docs = await getDocsClient();
     const updatedAt = toIndonesianDateTime();
 
     // Ensure main backlog section exists
