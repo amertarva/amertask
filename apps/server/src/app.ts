@@ -94,7 +94,7 @@ export const app = new Elysia()
   .use(exportRoutes)
   // Global error handler
   .onError(({ code, error, set }) => {
-    console.error("❌ Global error handler:", {
+    console.error("Global error handler:", {
       code,
       error: error instanceof Error ? error.message : error,
       stack: error instanceof Error ? error.stack : undefined,
@@ -151,3 +151,5 @@ export const app = new Elysia()
   });
 
 export type App = typeof app;
+
+export default app;
