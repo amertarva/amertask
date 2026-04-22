@@ -1,4 +1,5 @@
-import { google, type docs_v1 } from "googleapis";
+import { docs as docsApi, type docs_v1 } from "@googleapis/docs";
+import { GoogleAuth } from "google-auth-library";
 
 export type ExportType = "planning" | "backlog" | "execution";
 
@@ -131,7 +132,7 @@ function readServiceAccountConfig(): ServiceAccountConfig {
 
 function getDocsClient() {
   const serviceAccount = readServiceAccountConfig();
-  const auth = new google.auth.GoogleAuth({
+  const auth = new GoogleAuth({
     credentials: {
       client_email: serviceAccount.clientEmail,
       private_key: serviceAccount.privateKey,
@@ -140,7 +141,7 @@ function getDocsClient() {
     scopes: ["https://www.googleapis.com/auth/documents"],
   });
 
-  return google.docs({ version: "v1", auth });
+  return docsApi({ version: "v1", auth });
 }
 
 function toIndonesianDateTime(value: Date = new Date()) {

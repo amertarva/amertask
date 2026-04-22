@@ -19,6 +19,7 @@
         "@googleapis/docs": "^9.2.1",
         "@supabase/supabase-js": "^2.103.3",
         "elysia": "latest",
+        "google-auth-library": "^10.6.2",
         "jose": "^6.2.2",
       },
       "devDependencies": {

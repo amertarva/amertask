@@ -19,9 +19,13 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 }
 
-// Vercel Node.js runtime Web Standard entrypoint.
-export default {
-  async fetch(request: Request) {
-    return handleRequest(request);
-  },
-};
+// Vercel Bun runtime — compatible with both Edge-style and Bun.serve-style entrypoints.
+export default handleRequest;
+
+// Also export GET/POST/PATCH/DELETE/OPTIONS for Vercel Node.js/Edge runtime compatibility
+export const GET = handleRequest;
+export const POST = handleRequest;
+export const PATCH = handleRequest;
+export const DELETE = handleRequest;
+export const PUT = handleRequest;
+export const OPTIONS = handleRequest;
