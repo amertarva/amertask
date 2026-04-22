@@ -1,5 +1,6 @@
 {
   "bunVersion": "1.x",
+  "installCommand": "bun install",
   "rewrites": [
     {
       "source": "/(.*)",
