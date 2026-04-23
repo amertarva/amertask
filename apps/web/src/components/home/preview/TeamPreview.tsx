@@ -18,7 +18,7 @@ export default function TeamPreview() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pr-2 custom-scrollbar">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pr-2 custom-scrollbar pb-6">
         <TeamMemberCard
           name="Uta Kotobuki"
           role="Lead Engineer"

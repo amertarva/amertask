@@ -88,25 +88,25 @@ export default function BacklogPreview() {
 
 function BacklogRow({ id, title, tag, priority }: any) {
   return (
-    <div className="flex items-center gap-4 p-3 bg-card border border-border rounded-xl hover:border-primary/40 transition-colors cursor-pointer group shadow-sm hover:shadow-md">
-      <div className="flex items-center gap-3 w-32 shrink-0">
+    <div className="flex items-center gap-2 sm:gap-4 p-2 sm:p-3 bg-card border border-border rounded-xl hover:border-primary/40 transition-colors cursor-pointer group shadow-sm hover:shadow-md">
+      <div className="flex items-center gap-2 sm:gap-3 w-16 sm:w-32 shrink-0">
         <div
-          className={`w-2 h-2 rounded-full shadow-sm ${priority === "high" ? "bg-[#FF5F56]" : priority === "medium" ? "bg-[#FFBD2E]" : "bg-[#27C93F]"}`}
+          className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shadow-sm ${priority === "high" ? "bg-[#FF5F56]" : priority === "medium" ? "bg-[#FFBD2E]" : "bg-[#27C93F]"}`}
         />
-        <span className="text-xs font-semibold text-text-muted group-hover:text-text transition-colors">
+        <span className="text-[10px] sm:text-xs font-semibold text-text-muted group-hover:text-text transition-colors">
           {id}
         </span>
       </div>
-      <div className="flex-1 text-sm font-medium text-text group-hover:text-primary transition-colors truncate">
+      <div className="flex-1 text-[11px] sm:text-sm font-medium text-text group-hover:text-primary transition-colors truncate">
         {title}
       </div>
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <span
-          className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full border ${tag === "Backend" ? "bg-orange-500/10 text-orange-500 border-orange-500/20" : tag === "Frontend" ? "bg-primary/10 text-primary border-ring/20" : "bg-pink-500/10 text-pink-500 border-pink-500/20"}`}
+          className={`text-[8px] sm:text-[10px] font-semibold uppercase px-1.5 sm:px-2 py-0.5 rounded-full border ${tag === "Backend" ? "bg-orange-500/10 text-orange-500 border-orange-500/20" : tag === "Frontend" ? "bg-primary/10 text-primary border-ring/20" : "bg-pink-500/10 text-pink-500 border-pink-500/20"}`}
         >
           {tag}
         </span>
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-border">
+        <div className="hidden sm:flex w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary-hover items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-border">
           U
         </div>
       </div>

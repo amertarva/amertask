@@ -1,9 +1,17 @@
+"use client";
+
+import { motion } from "motion/react";
+
 interface TaskCardProps {
   id: string;
   title: string;
   tag: string;
   priority: "high" | "medium" | "low";
   active?: boolean;
+  assignee?: {
+    initials: string;
+    color: string;
+  };
 }
 
 export default function TaskCard({
@@ -12,9 +20,12 @@ export default function TaskCard({
   tag,
   priority,
   active,
+  assignee = { initials: "G", color: "from-primary to-primary-hover" },
 }: TaskCardProps) {
   return (
-    <div
+    <motion.div
+      whileHover={{ y: -2, scale: 1.02 }}
+      transition={{ duration: 0.2 }}
       className={`p-4 bg-card rounded-xl border ${active ? "border-primary shadow-[0_0_15px_-3px_rgba(var(--color-primary),0.2)]" : "border-border"} hover:border-primary/50 transition-all cursor-pointer group relative`}
     >
       <div className="flex flex-col gap-3">
@@ -45,11 +56,13 @@ export default function TaskCard({
           <div
             className={`w-2.5 h-2.5 rounded-full shadow-sm ${priority === "high" ? "bg-[#FF5F56]" : priority === "medium" ? "bg-[#FFBD2E]" : "bg-[#27C93F]"}`}
           />
-          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-[10px] font-bold text-primary-foreground shadow-sm ring-2 ring-background">
-            G
+          <div className={`w-5 h-5 rounded-full bg-gradient-to-br ${assignee.color} flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-2 ring-background`}>
+            {assignee.initials}
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
+
+

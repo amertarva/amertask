@@ -19,36 +19,36 @@ export default function AnalyticsPreview() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="p-5 bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-          <div className="text-sm font-medium text-text-muted mb-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+        <div className="p-4 sm:p-5 bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-xs sm:text-sm font-medium text-text-muted mb-2">
             Issues Completed
           </div>
-          <div className="text-3xl font-bold flex items-end gap-2 text-text">
+          <div className="text-2xl sm:text-3xl font-bold flex items-end gap-1 sm:gap-2 text-text">
             124{" "}
-            <span className="text-xs text-status-done mb-1.5 font-semibold bg-status-done/10 px-1.5 py-0.5 rounded-md border border-status-done/20">
+            <span className="text-[10px] sm:text-xs text-status-done mb-1 sm:mb-1.5 font-semibold bg-status-done/10 px-1.5 py-0.5 rounded-md border border-status-done/20">
               +14%
             </span>
           </div>
         </div>
-        <div className="p-5 bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-          <div className="text-sm font-medium text-text-muted mb-2">
+        <div className="p-4 sm:p-5 bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-xs sm:text-sm font-medium text-text-muted mb-2">
             Cycle Time
           </div>
-          <div className="text-3xl font-bold flex items-end gap-2 text-text">
+          <div className="text-2xl sm:text-3xl font-bold flex items-end gap-1 sm:gap-2 text-text">
             2.4d{" "}
-            <span className="text-xs text-primary mb-1.5 font-semibold bg-primary/10 px-1.5 py-0.5 rounded-md border border-primary/20">
+            <span className="text-[10px] sm:text-xs text-primary mb-1 sm:mb-1.5 font-semibold bg-primary/10 px-1.5 py-0.5 rounded-md border border-primary/20">
               -0.2d
             </span>
           </div>
         </div>
-        <div className="p-5 bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-          <div className="text-sm font-medium text-text-muted mb-2">
+        <div className="col-span-2 md:col-span-1 p-4 sm:p-5 bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+          <div className="text-xs sm:text-sm font-medium text-text-muted mb-2">
             Active Members
           </div>
-          <div className="text-3xl font-bold flex items-end gap-2 text-text">
+          <div className="text-2xl sm:text-3xl font-bold flex items-end gap-1 sm:gap-2 text-text">
             12{" "}
-            <span className="text-xs text-text-muted mb-1.5 font-semibold bg-muted px-1.5 py-0.5 rounded-md border border-border">
+            <span className="text-[10px] sm:text-xs text-text-muted mb-1 sm:mb-1.5 font-semibold bg-muted px-1.5 py-0.5 rounded-md border border-border">
               Same
             </span>
           </div>

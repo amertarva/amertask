@@ -1,9 +1,5 @@
 import { app } from "../src/app";
 
-/**
- * Vercel Serverless Function Handler for ElysiaJS
- * Using Web Standard Request/Response API
- */
 async function handleRequest(incomingRequest: any): Promise<Response> {
   let request: Request;
 

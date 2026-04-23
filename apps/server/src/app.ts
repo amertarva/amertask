@@ -56,7 +56,7 @@ export const app = new Elysia()
   // Health check
   .get("/", () => ({
     message: "Amertask API",
-    version: "1.0.0",
+    version: "1.1.0",
     status: "running",
   }))
   .get("/ping", () => "pong")
