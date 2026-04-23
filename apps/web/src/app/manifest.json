@@ -1,6 +1,6 @@
 {
-  "name": "MyWebSite",
-  "short_name": "MySite",
+  "name": "Amertask",
+  "short_name": "Amertask",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
