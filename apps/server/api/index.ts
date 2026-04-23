@@ -4,17 +4,49 @@ import { app } from "../src/app";
  * Vercel Serverless Function Handler for ElysiaJS
  * Using Web Standard Request/Response API
  */
-async function handleRequest(request: Request): Promise<Response> {
+async function handleRequest(incomingRequest: any): Promise<Response> {
+  let request: Request;
+
+  if (incomingRequest && typeof incomingRequest.headers?.get !== "function") {
+    const urlStr = `https://${incomingRequest.headers?.host || "localhost"}${incomingRequest.url || "/"}`;
+    const headers = new Headers();
+
+    for (const [key, value] of Object.entries(incomingRequest.headers || {})) {
+      if (Array.isArray(value)) {
+        value.forEach((v) => headers.append(key, v));
+      } else if (value) {
+        headers.set(key, value as string);
+      }
+    }
+
+    let body: BodyInit | undefined = undefined;
+    const method = incomingRequest.method || "GET";
+
+    if (method !== "GET" && method !== "HEAD" && incomingRequest.body) {
+      body =
+        typeof incomingRequest.body === "string"
+          ? incomingRequest.body
+          : JSON.stringify(incomingRequest.body);
+    }
+
+    request = new Request(urlStr, { method, headers, body });
+  } else {
+    request = incomingRequest as Request;
+  }
+
   let pathname = "unknown";
   let url: URL | undefined;
 
   try {
-    // request.url might be relative in some Vercel Node.js environments
     const urlStr = request.url;
-    const isAbsolute = urlStr.startsWith("http://") || urlStr.startsWith("https://");
-    url = isAbsolute 
-      ? new URL(urlStr) 
-      : new URL(urlStr, `https://${request.headers.get("host") || "localhost"}`);
+    const isAbsolute =
+      urlStr.startsWith("http://") || urlStr.startsWith("https://");
+    url = isAbsolute
+      ? new URL(urlStr)
+      : new URL(
+          urlStr,
+          `https://${request.headers.get("host") || "localhost"}`,
+        );
     pathname = url.pathname;
   } catch (e) {
     console.error("Failed to parse URL:", request.url, e);
@@ -24,7 +56,9 @@ async function handleRequest(request: Request): Promise<Response> {
 
   try {
     const response = await app.handle(request);
-    console.log(`[${request.method}] ${pathname} - Handled: ${response.status}`);
+    console.log(
+      `[${request.method}] ${pathname} - Handled: ${response.status}`,
+    );
     return response;
   } catch (error) {
     console.error(`[${request.method}] ${pathname} - CRASH:`, error);
@@ -43,12 +77,9 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 }
 
-export default handleRequest;
 export const GET = handleRequest;
 export const POST = handleRequest;
 export const PATCH = handleRequest;
 export const DELETE = handleRequest;
 export const PUT = handleRequest;
 export const OPTIONS = handleRequest;
-
-export { handleRequest as handler };
