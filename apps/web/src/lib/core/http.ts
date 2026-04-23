@@ -18,6 +18,20 @@ function normalizeBaseUrl(rawValue: string): string {
   }
 
   if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const url = new URL(trimmed);
+      if (!url.pathname.endsWith("/api") && !url.pathname.includes("/api/")) {
+        const corrected = `${trimmed}/api`;
+        console.warn(
+          `⚠️ NEXT_PUBLIC_API_URL='${rawValue}' tampaknya bukan API endpoint (tidak mengandung /api). ` +
+            `Menggunakan '${corrected}' untuk menghindari error 405. ` +
+            `Sebaiknya biarkan NEXT_PUBLIC_API_URL kosong agar otomatis menggunakan proxy /api.`,
+        );
+        return corrected;
+      }
+    } catch {
+      // Invalid URL, fall through to return as-is
+    }
     return trimmed;
   }
 

@@ -6,46 +6,46 @@ Pastikan environment variables berikut sudah di-set di Vercel Dashboard:
 
 ### Required Variables
 
-1. **BACKEND_URL** (Server-side only)
-   - URL backend untuk Next.js API routes
+1. **BACKEND_URL** (Server-side only) — **WAJIB**
+   - URL backend untuk Next.js API routes (proxy)
    - Contoh: `https://api-amertask.vercel.app`
-   - Digunakan oleh: `/app/api/**` routes
+   - Digunakan oleh: `/app/api/**` routes untuk mem-forward request ke backend
 
-2. **NEXT_PUBLIC_API_URL** (Client-side)
-   - URL backend untuk frontend client
-   - Contoh: `https://api-amertask.vercel.app`
-   - Digunakan oleh: Client-side fetch calls
+2. **NEXT_PUBLIC_API_URL** (Client-side) — **BIARKAN KOSONG**
+   - ⚠️ **JANGAN set ke URL frontend** (mis. `https://task-amertarva.vercel.app`)
+   - ⚠️ **JANGAN set ke URL backend langsung** (mis. `https://api-amertask.vercel.app`)
+   - **Biarkan kosong/unset** agar client otomatis menggunakan `/api` (proxy pattern)
+   - Ini memastikan semua request dari browser melewati Next.js API routes → backend
+
+## Arsitektur Request Flow
+
+```
+Browser → /api/auth/login (Next.js API Route) → BACKEND_URL/auth/login (ElysiaJS)
+          ^^^^^^^^^^^^^^^^                       ^^^^^^^^^^^^^^^^^^^^^^^^
+          NEXT_PUBLIC_API_URL fallback = "/api"   BACKEND_URL = "https://api-amertask.vercel.app"
+```
 
 ## Cara Set Environment Variables di Vercel
 
 1. Buka project di Vercel Dashboard
 2. Pergi ke **Settings** → **Environment Variables**
-3. Tambahkan variables berikut:
+3. Tambahkan variable berikut:
 
 ```
 BACKEND_URL=https://api-amertask.vercel.app
-NEXT_PUBLIC_API_URL=https://api-amertask.vercel.app
 ```
 
-4. Pilih environment: **Production**, **Preview**, dan **Development**
-5. Klik **Save**
-6. Redeploy project
-
-## Turbo.json Configuration
-
-Untuk menghindari warning, tambahkan environment variables ke `turbo.json`:
-
-```json
-{
-  "tasks": {
-    "build": {
-      "env": ["BACKEND_URL", "NEXT_PUBLIC_API_URL"]
-    }
-  }
-}
-```
+4. **PASTIKAN `NEXT_PUBLIC_API_URL` TIDAK di-set** (atau kosongkan nilainya)
+5. Pilih environment: **Production**, **Preview**, dan **Development**
+6. Klik **Save**
+7. **Redeploy project** (penting! env vars baru memerlukan redeploy)
 
 ## Troubleshooting
+
+### Error: 405 Method Not Allowed pada `/auth/login`
+
+- **Penyebab:** `NEXT_PUBLIC_API_URL` di-set ke URL frontend sendiri
+- **Solusi:** Hapus/kosongkan `NEXT_PUBLIC_API_URL` di Vercel environment variables, lalu redeploy
 
 ### Error: "BACKEND_URL belum di-set"
 
