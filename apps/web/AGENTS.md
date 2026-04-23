@@ -1,1005 +1,440 @@
-# Upgrade: Export Google Docs dengan Format Tabel Rapi
+# Fix: 500 Error pada Proxy Route Next.js di Vercel
 
-## Konteks & Prasyarat
+## Diagnosis dari Log
 
-Dokumen ini adalah **upgrade dari `CLAUDE_COPY_TO_GOOGLE_DOCS.md`**.
-Asumsikan fitur Copy to Docs sudah berjalan dengan format teks pipe-separated.
+```
+POST https://task-amertarva.vercel.app/api/auth/login 500
+📡 API Response: {status: 500, contentType: 'application/json', url: '.../api/auth/login'}
+```
 
-**Yang diubah:** Hanya `apps/server/src/services/google-docs.service.ts`
-**Yang TIDAK diubah:** Semua file frontend, proxy route, export.routes.ts, hooks, button component
+**Yang terjadi:**
+
+```
+Browser
+  → POST task-amertarva.vercel.app/api/auth/login   ← Next.js proxy route
+      → harusnya forward ke api-amertask.vercel.app/auth/login  ← Backend
+```
+
+`contentType: 'application/json'` berarti Next.js proxy route-nya sendiri yang return 500 —
+artinya proxy **tidak bisa reach backend** atau **BACKEND_URL tidak di-set** di Vercel frontend.
 
 ---
 
-## Mengapa Format Lama Buruk
+## LANGKAH 1 — Set `BACKEND_URL` di Vercel Frontend (Penyebab Paling Umum)
 
-Format lama menggunakan pipe-separated text:
+Buka Vercel Dashboard → pilih project **frontend** (`task-amertarva`) → **Settings** → **Environment Variables**.
+
+Tambahkan:
 
 ```
-No   | Task ID    | Nama Tugas                     | ...
------|------------|--------------------------------|...
-1    | PERDIG-1   | Fix login bug                  | ...
+BACKEND_URL = https://api-amertask.vercel.app
 ```
 
-Masalahnya:
+> **Jangan pakai** `http://` atau trailing slash.
+> Format yang benar: `https://api-amertask.vercel.app` (tanpa `/` di akhir)
 
-- Lebar kolom tidak konsisten di semua font (Google Docs pakai font proporsional, bukan monospace)
-- Tidak bisa bold header, tidak ada warna, tidak ada border visual
-- Terlihat seperti kode, bukan dokumen profesional
+Setelah ditambahkan → **Redeploy** (wajib, env vars tidak aktif tanpa redeploy):
 
-**Format baru** menggunakan Google Docs Tables API — tabel native dengan:
-
-- Header baris pertama: background biru gelap (`#1a73e8`) + teks putih + bold
-- Baris data: alternating white dan light blue (`#e8f0fe`) untuk readability
-- Border tipis pada setiap cell
-- Lebar kolom proporsional per tipe konten
-- Section title dengan heading style
+```
+Vercel Dashboard → Deployments → titik tiga (...) → Redeploy
+```
 
 ---
 
-## Konsep Kunci: Two-Pass API Call
+## LANGKAH 2 — Fix Semua Proxy Route Next.js
 
-Google Docs API tidak bisa insert tabel dan isi cell dalam satu batch — posisi cell baru tidak diketahui sebelum tabel dibuat. Solusinya adalah **two-pass**:
+Masalah kedua yang sering terjadi: proxy route tidak handle `BACKEND_URL` yang undefined
+dan tidak punya error handling yang benar. Perbaiki semua sekaligus.
 
-```
-Pass 1: batchUpdate
-  → Hapus konten lama (jika ada di antara marker)
-  → Insert section title text
-  → Insert tabel kosong (insertTable)
+### 2A — Pastikan `_lib/proxy.ts` Benar
 
-Re-fetch dokumen
-  → Baca posisi cell yang baru dibuat
-
-Pass 2: batchUpdate (REVERSE ORDER — penting!)
-  → Isi setiap cell dengan insertText
-  → Apply styling pada header row (bold + background)
-```
-
-**Kenapa reverse order saat isi cell?**
-Setiap `insertText` menggeser index semua elemen setelahnya. Dengan mengisi dari cell terakhir ke cell pertama, index sebelumnya tidak pernah bergeser.
-
----
-
-## IMPLEMENTASI — Timpa Seluruh File
-
-**File: `apps/server/src/services/google-docs.service.ts`**
-
-Timpa seluruh isi file dengan implementasi berikut:
+**File: `apps/web/src/app/api/_lib/proxy.ts`**
 
 ```typescript
-import { google, docs_v1 } from "googleapis";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-export type ExportType = "planning" | "backlog" | "execution";
-
-export interface PlanningItem {
-  id: string;
-  number: number;
-  teamSlug: string;
-  title: string;
-  description?: string;
-  planInfo?: string;
-  assignedUser?: string;
-  status: string;
-  priority: string;
-  createdBy?: string;
-}
-
-export interface BacklogItem {
-  id: string;
-  number: number;
-  teamSlug: string;
-  title: string;
-  description?: string;
-  targetUser?: string;
-  priority: string;
-  reason?: string;
-}
-
-export interface ExecutionItem {
-  id: string;
-  number: number;
-  teamSlug: string;
-  title: string;
-  assignedUser?: string;
-  status: string;
-  notes?: string;
-  updatedAt: string;
-}
-
-// ─── Markers ─────────────────────────────────────────────────────────────────
-
-const MARKERS = {
-  planning: {
-    start: "[TASKOPS-PLANNING-START]",
-    end: "[TASKOPS-PLANNING-END]",
-  },
-  backlog: { start: "[TASKOPS-BACKLOG-START]", end: "[TASKOPS-BACKLOG-END]" },
-  execution: {
-    start: "[TASKOPS-EXECUTION-START]",
-    end: "[TASKOPS-EXECUTION-END]",
-  },
-} as const;
-
-// ─── Warna Tabel ─────────────────────────────────────────────────────────────
-
-const TABLE_COLORS = {
-  headerBg: { red: 0.102, green: 0.451, blue: 0.914 }, // #1a73e8 — Google Blue
-  headerText: { red: 1, green: 1, blue: 1 }, // #ffffff — White
-  rowAlt: { red: 0.91, green: 0.941, blue: 0.996 }, // #e8f0fe — Light blue
-  rowNormal: { red: 1, green: 1, blue: 1 }, // #ffffff — White
-  border: { red: 0.827, green: 0.851, blue: 0.914 }, // #d3d9e9 — Soft border
-};
-
-// ─── Helper: Google Auth ─────────────────────────────────────────────────────
-
-function getGoogleAuth() {
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (!privateKey || !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
-    throw new Error(
-      "Google Service Account credentials tidak ditemukan di .env",
-    );
-  }
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: privateKey,
-      project_id: process.env.GOOGLE_PROJECT_ID,
-    },
-    scopes: ["https://www.googleapis.com/auth/documents"],
-  });
-}
-
-// ─── Helper: Extract Document ID ─────────────────────────────────────────────
-
-export function extractDocumentId(url: string): string | null {
-  const match = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
-  return match ? match[1] : null;
-}
-
-// ─── Helper: Cari Marker di Dokumen ──────────────────────────────────────────
-
-interface MarkerPosition {
-  startIndex: number;
-  endIndex: number;
-  found: boolean;
-}
-
-function findMarkers(
-  content: docs_v1.Schema$StructuralElement[],
-  startMarker: string,
-  endMarker: string,
-): MarkerPosition {
-  let startIndex = -1;
-  let endIndex = -1;
-
-  for (const el of content) {
-    if (!el.paragraph) continue;
-    const text = (el.paragraph.elements ?? [])
-      .map((e) => e.textRun?.content ?? "")
-      .join("")
-      .trim();
-
-    if (text === startMarker && startIndex === -1) {
-      startIndex = el.startIndex ?? 0;
-    }
-    if (text === endMarker && startIndex !== -1) {
-      endIndex = el.endIndex ?? 0;
-      break;
-    }
-  }
-
-  return { startIndex, endIndex, found: startIndex !== -1 && endIndex !== -1 };
-}
-
-// ─── Helper: Temukan Semua Cell dalam Tabel ───────────────────────────────────
-// Mengembalikan array [row][col] berisi startIndex setiap cell
-
-function extractTableCells(
-  content: docs_v1.Schema$StructuralElement[],
-): number[][][] {
-  const tables: number[][][] = [];
-
-  for (const el of content) {
-    if (!el.table) continue;
-    const rows: number[][] = [];
-    for (const row of el.table.tableRows ?? []) {
-      const cols: number[] = [];
-      for (const cell of row.tableCells ?? []) {
-        // startIndex dari paragraf pertama di dalam cell
-        const firstPara = cell.content?.[0];
-        cols.push(firstPara?.startIndex ?? 0);
-      }
-      rows.push(cols);
-    }
-    tables.push(rows);
-  }
-
-  return tables;
-}
-
-// ─── Helper: Build requests untuk styling header row ─────────────────────────
-// Dipanggil SETELAH tabel terisi, karena butuh range yang sudah ada teksnya
-
-function buildHeaderStyleRequests(
-  content: docs_v1.Schema$StructuralElement[],
-  tableIndex: number, // index tabel ke-berapa dari atas dokumen
-): docs_v1.Schema$Request[] {
-  const tables = content.filter((el) => el.table);
-  const table = tables[tableIndex];
-  if (!table?.table) return [];
-
-  const requests: docs_v1.Schema$Request[] = [];
-  const firstRow = table.table.tableRows?.[0];
-  if (!firstRow) return [];
-
-  for (const cell of firstRow.tableCells ?? []) {
-    const cellStart = cell.startIndex ?? 0;
-    const cellEnd = cell.endIndex ?? 0;
-
-    if (cellEnd <= cellStart) continue;
-
-    // Background cell header
-    requests.push({
-      updateTableCellStyle: {
-        tableStartLocation: { index: table.startIndex ?? 0 },
-        rowIndices: [0],
-        columnIndices: [(firstRow.tableCells ?? []).indexOf(cell)],
-        tableCellStyle: {
-          backgroundColor: { color: { rgbColor: TABLE_COLORS.headerBg } },
-        },
-        fields: "backgroundColor",
-      },
-    });
-
-    // Teks bold + warna putih di header
-    requests.push({
-      updateTextStyle: {
-        range: { startIndex: cellStart + 1, endIndex: cellEnd - 1 },
-        textStyle: {
-          bold: true,
-          foregroundColor: { color: { rgbColor: TABLE_COLORS.headerText } },
-          fontSize: { magnitude: 10, unit: "PT" },
-        },
-        fields: "bold,foregroundColor,fontSize",
-      },
-    });
-  }
-
-  return requests;
-}
-
-// ─── Helper: Build requests untuk alternating row color ──────────────────────
-
-function buildRowColorRequests(
-  content: docs_v1.Schema$StructuralElement[],
-  tableIndex: number,
-): docs_v1.Schema$Request[] {
-  const tables = content.filter((el) => el.table);
-  const table = tables[tableIndex];
-  if (!table?.table) return [];
-
-  const requests: docs_v1.Schema$Request[] = [];
-  const rows = table.table.tableRows ?? [];
-
-  // Skip row pertama (header), mulai dari row ke-2
-  rows.slice(1).forEach((row, rowIdx) => {
-    const bgColor =
-      rowIdx % 2 === 0
-        ? TABLE_COLORS.rowNormal // genap → putih
-        : TABLE_COLORS.rowAlt; // ganjil → light blue
-
-    (row.tableCells ?? []).forEach((cell, colIdx) => {
-      requests.push({
-        updateTableCellStyle: {
-          tableStartLocation: { index: table.startIndex ?? 0 },
-          rowIndices: [rowIdx + 1],
-          columnIndices: [colIdx],
-          tableCellStyle: {
-            backgroundColor: { color: { rgbColor: bgColor } },
-          },
-          fields: "backgroundColor",
-        },
-      });
-    });
-  });
-
-  return requests;
-}
-
-// ─── Helper: Build requests isi cell (REVERSE ORDER) ─────────────────────────
-// Mengisi cell dari kanan-bawah ke kiri-atas untuk menjaga index tetap valid
-
-function buildFillCellRequests(
-  cellMatrix: number[][],
-  rows: string[][], // rows[r][c] = teks untuk cell (r, c)
-): docs_v1.Schema$Request[] {
-  const requests: docs_v1.Schema$Request[] = [];
-
-  // Iterasi dari baris terakhir ke baris pertama
-  for (let r = rows.length - 1; r >= 0; r--) {
-    // Iterasi dari kolom terakhir ke kolom pertama
-    for (let c = rows[r].length - 1; c >= 0; c--) {
-      const cellStartIndex = cellMatrix[r]?.[c];
-      if (cellStartIndex === undefined) continue;
-
-      const text = (rows[r][c] ?? "").trim();
-      if (!text) continue;
-
-      requests.push({
-        insertText: {
-          location: { index: cellStartIndex + 1 }, // +1 skip newline awal cell
-          text,
-        },
-      });
-    }
-  }
-
-  return requests;
-}
-
-// ─── Helper: Build column width requests ─────────────────────────────────────
-// Sesuaikan lebar kolom (dalam satuan PT — 1 inch = 72 PT)
-
-function buildColumnWidthRequests(
-  content: docs_v1.Schema$StructuralElement[],
-  tableIndex: number,
-  widths: number[], // array lebar per kolom dalam PT
-): docs_v1.Schema$Request[] {
-  const tables = content.filter((el) => el.table);
-  const table = tables[tableIndex];
-  if (!table?.table) return [];
-
-  const requests: docs_v1.Schema$Request[] = [];
-  const firstRow = table.table.tableRows?.[0];
-  if (!firstRow) return [];
-  (firstRow.tableCells ?? []).forEach((_, colIdx) => {
-    const width = widths[colIdx];
-    if (!width) return;
-    requests.push({
-      updateTableColumnProperties: {
-        tableStartLocation: { index: table.startIndex ?? 0 },
-        columnIndices: [colIdx],
-        tableColumnProperties: {
-          widthType: "FIXED_WIDTH",
-          width: { magnitude: width, unit: "PT" },
-        },
-        fields: "widthType,width",
-      },
-    });
-  });
-
-  return requests;
-}
-
-// ─── Helper: Insert section heading ──────────────────────────────────────────
-
-function buildHeadingRequests(
-  insertIndex: number,
-  title: string,
-  subtitle: string,
-): { requests: docs_v1.Schema$Request[]; textLength: number } {
-  const fullText = `${title}\n${subtitle}\n`;
-  const titleEnd = insertIndex + title.length + 1;
-  const subtitleEnd = titleEnd + subtitle.length + 1;
-
-  const requests: docs_v1.Schema$Request[] = [
-    {
-      insertText: {
-        location: { index: insertIndex },
-        text: fullText,
-      },
-    },
-    // Style judul
-    {
-      updateParagraphStyle: {
-        range: {
-          startIndex: insertIndex,
-          endIndex: insertIndex + title.length,
-        },
-        paragraphStyle: { namedStyleType: "HEADING_2" },
-        fields: "namedStyleType",
-      },
-    },
-    {
-      updateTextStyle: {
-        range: {
-          startIndex: insertIndex,
-          endIndex: insertIndex + title.length,
-        },
-        textStyle: {
-          bold: true,
-          fontSize: { magnitude: 14, unit: "PT" },
-          foregroundColor: {
-            color: { rgbColor: { red: 0.067, green: 0.133, blue: 0.267 } },
-          },
-        },
-        fields: "bold,fontSize,foregroundColor",
-      },
-    },
-    // Style subtitle
-    {
-      updateTextStyle: {
-        range: { startIndex: titleEnd, endIndex: subtitleEnd - 1 },
-        textStyle: {
-          bold: false,
-          italic: true,
-          fontSize: { magnitude: 9, unit: "PT" },
-          foregroundColor: {
-            color: { rgbColor: { red: 0.4, green: 0.4, blue: 0.4 } },
-          },
-        },
-        fields: "bold,italic,fontSize,foregroundColor",
-      },
-    },
-  ];
-
-  return { requests, textLength: fullText.length };
-}
-
-// ─── Core: Write Section ke Dokumen ──────────────────────────────────────────
-
-async function writeSectionToDoc(params: {
-  documentId: string;
-  exportType: ExportType;
-  headerRow: string[];
-  dataRows: string[][];
-  columnWidths: number[]; // dalam PT, total harus ≤ 468 (A4 landscape margin)
-  sectionTitle: string;
-  sectionSubtitle: string;
-}): Promise<void> {
-  const {
-    documentId,
-    exportType,
-    headerRow,
-    dataRows,
-    columnWidths,
-    sectionTitle,
-    sectionSubtitle,
-  } = params;
-
-  const auth = getGoogleAuth();
-  const docs = google.docs({ version: "v1", auth });
-  const markers = MARKERS[exportType];
-  const allRows = [headerRow, ...dataRows];
-  const numRows = allRows.length;
-  const numCols = headerRow.length;
-
-  // ══════════════════════════════════════════════════════════════════
-  // PASS 1: Hapus konten lama + insert heading + insert empty table
-  // ══════════════════════════════════════════════════════════════════
-
-  const doc1 = await docs.documents.get({ documentId });
-  const content1 = doc1.data.body?.content ?? [];
-  const position = findMarkers(content1, markers.start, markers.end);
-
-  const pass1Requests: docs_v1.Schema$Request[] = [];
-  let insertIndex: number;
-
-  if (position.found) {
-    // Konten lama ada → hapus isi di antara marker (pertahankan marker-nya)
-    const innerStart = position.startIndex + markers.start.length + 1;
-    const innerEnd = position.endIndex - markers.end.length - 1;
-
-    if (innerEnd > innerStart) {
-      pass1Requests.push({
-        deleteContentRange: {
-          range: { startIndex: innerStart, endIndex: innerEnd },
-        },
-      });
-    }
-    insertIndex = innerStart;
-  } else {
-    // Belum ada → append ke akhir dokumen, buat marker baru
-    const lastEl = content1[content1.length - 1];
-    const bodyEnd = (lastEl?.endIndex ?? 2) - 1;
-    insertIndex = Math.max(1, bodyEnd);
-
-    // Insert marker pembuka
-    pass1Requests.push({
-      insertText: {
-        location: { index: insertIndex },
-        text: `\n${markers.start}\n`,
-      },
-    });
-    insertIndex += markers.start.length + 2; // kompensasi teks marker
-
-    // Insert marker penutup (akan diinsert setelah konten)
-    // Kita tambahkan marker.end setelah tabel nanti di pass2
-  }
-
-  // Insert heading (title + subtitle)
-  const { requests: headingRequests, textLength: headingLen } =
-    buildHeadingRequests(insertIndex, sectionTitle, sectionSubtitle);
-
-  pass1Requests.push(...headingRequests);
-
-  // Insert tabel kosong setelah heading
-  const tableInsertIndex = insertIndex + headingLen;
-  pass1Requests.push({
-    insertTable: {
-      rows: numRows,
-      columns: numCols,
-      location: { index: tableInsertIndex },
-    },
-  });
-
-  await docs.documents.batchUpdate({
-    documentId,
-    requestBody: { requests: pass1Requests },
-  });
-
-  // ══════════════════════════════════════════════════════════════════
-  // Re-fetch: baca posisi cell yang baru dibuat
-  // ══════════════════════════════════════════════════════════════════
-
-  const doc2 = await docs.documents.get({ documentId });
-  const content2 = doc2.data.body?.content ?? [];
-
-  // Cari tabel yang baru dibuat — ambil tabel pertama setelah insertIndex
-  // (bisa ada beberapa tabel jika dokumen sudah punya tabel sebelumnya)
-  const allTables = content2.filter((el) => el.table);
-  let targetTableIndex = 0;
-  for (let i = 0; i < allTables.length; i++) {
-    if ((allTables[i].startIndex ?? 0) > insertIndex) {
-      targetTableIndex = i;
-      break;
-    }
-    targetTableIndex = i; // fallback: tabel terakhir yang ditemukan
-  }
-
-  const cellMatrix = extractTableCells(content2);
-  const targetCells = cellMatrix[targetTableIndex];
-
-  if (!targetCells || targetCells.length === 0) {
-    throw new Error(
-      "Tabel tidak ditemukan setelah insert. Dokumen mungkin perlu di-share ulang ke service account.",
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════
-  // PASS 2: Isi cell (reverse order) + styling header + row colors + column width
-  // ══════════════════════════════════════════════════════════════════
-
-  const pass2Requests: docs_v1.Schema$Request[] = [];
-
-  // 1. Lebar kolom
-  pass2Requests.push(
-    ...buildColumnWidthRequests(content2, targetTableIndex, columnWidths),
+// Validasi BACKEND_URL saat module di-load
+const BACKEND_URL_RAW = process.env.BACKEND_URL;
+
+if (!BACKEND_URL_RAW) {
+  console.error(
+    "[proxy] FATAL: BACKEND_URL tidak di-set!\n" +
+      "Tambahkan BACKEND_URL=https://api-amertask.vercel.app di Vercel env vars.",
   );
+}
 
-  // 2. Alternating row color (data rows, bukan header)
-  pass2Requests.push(...buildRowColorRequests(content2, targetTableIndex));
+export const BACKEND_URL = (BACKEND_URL_RAW ?? "http://localhost:3000").replace(
+  /\/$/,
+  "",
+);
 
-  // 3. Isi cell — REVERSE ORDER agar index tidak bergeser
-  pass2Requests.push(...buildFillCellRequests(targetCells, allRows));
-
-  await docs.documents.batchUpdate({
-    documentId,
-    requestBody: { requests: pass2Requests },
-  });
-
-  // ══════════════════════════════════════════════════════════════════
-  // PASS 3: Styling header (butuh range teks yang sudah ada)
-  // ══════════════════════════════════════════════════════════════════
-
-  const doc3 = await docs.documents.get({ documentId });
-  const content3 = doc3.data.body?.content ?? [];
-
-  const pass3Requests: docs_v1.Schema$Request[] = [
-    ...buildHeaderStyleRequests(content3, targetTableIndex),
-  ];
-
-  // Jika marker penutup belum ada, tambahkan setelah tabel
-  if (!position.found) {
-    const allTables3 = content3.filter((el) => el.table);
-    const targetTable3 = allTables3[targetTableIndex];
-    const tableEndIdx = targetTable3?.endIndex ?? 0;
-    if (tableEndIdx > 0) {
-      pass3Requests.push({
-        insertText: {
-          location: { index: tableEndIdx },
-          text: `\n${markers.end}\n`,
-        },
-      });
+/**
+ * Parse response body dengan aman — tidak crash jika backend return plain text
+ */
+export async function safeJson(response: Response): Promise<unknown> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      return await response.json();
+    } catch {
+      return {
+        error: "PARSE_ERROR",
+        message: "Response dari backend bukan JSON valid",
+      };
     }
   }
-
-  if (pass3Requests.length > 0) {
-    await docs.documents.batchUpdate({
-      documentId,
-      requestBody: { requests: pass3Requests },
-    });
-  }
-}
-
-// ─── Helper: Format status label ─────────────────────────────────────────────
-
-function fmtStatus(status: string): string {
-  const map: Record<string, string> = {
-    backlog: "Backlog",
-    todo: "To Do",
-    in_progress: "In Progress",
-    in_review: "Review",
-    done: "Selesai",
-    cancelled: "Dibatalkan",
+  const text = await response.text();
+  return {
+    error: "BACKEND_ERROR",
+    message: text || "Terjadi kesalahan di backend",
   };
-  return map[status] ?? status;
 }
 
-function fmtPriority(priority: string): string {
-  const map: Record<string, string> = {
-    urgent: "Urgent 🔴",
-    high: "Tinggi 🟠",
-    medium: "Sedang 🟡",
-    low: "Rendah 🟢",
+/**
+ * Forward Authorization header dari request ke backend
+ */
+export function forwardAuth(request: Request): HeadersInit {
+  const authHeader = request.headers.get("authorization");
+  return {
+    "Content-Type": "application/json",
+    ...(authHeader ? { authorization: authHeader } : {}),
   };
-  return map[priority] ?? priority;
 }
+```
 
-// ─── Public API ───────────────────────────────────────────────────────────────
+### 2B — Fix Proxy Route Auth Login
 
-export const googleDocsService = {
-  extractDocumentId,
+**File: `apps/web/src/app/api/auth/login/route.ts`**
 
-  async exportPlanning(
-    documentId: string,
-    items: PlanningItem[],
-    teamName: string,
-  ): Promise<void> {
-    const updatedAt = new Date().toLocaleString("id-ID", {
-      dateStyle: "full",
-      timeStyle: "short",
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { BACKEND_URL, safeJson } from "@/app/api/_lib/proxy";
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const response = await fetch(`${BACKEND_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
 
-    const headerRow = [
-      "No",
-      "Task ID",
-      "Nama Tugas",
-      "Expected Output",
-      "Ditugaskan ke",
-      "Status",
-      "Prioritas",
-      "Dibuat oleh",
-    ];
+    const data = await safeJson(response);
 
-    const dataRows = items.map((item, idx) => [
-      String(idx + 1),
-      `${item.teamSlug}-${item.number}`,
-      item.title ?? "",
-      item.planInfo ?? "-",
-      item.assignedUser ?? "Unassigned",
-      fmtStatus(item.status),
-      fmtPriority(item.priority),
-      item.createdBy ?? "-",
-    ]);
+    if (!response.ok) {
+      console.error("[proxy /auth/login]", response.status, data);
+      return NextResponse.json(data, { status: response.status });
+    }
 
-    // Lebar kolom dalam PT — total = 468 PT (A4 portrait, margin normal)
-    // No(24) + TaskID(54) + Tugas(100) + Output(90) + Assignee(72) + Status(54) + Prioritas(48) + Creator(26)
-    const columnWidths = [24, 54, 100, 90, 72, 54, 48, 26];
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error("[proxy /auth/login] network error:", err);
 
-    await writeSectionToDoc({
-      documentId,
-      exportType: "planning",
-      headerRow,
-      dataRows,
-      columnWidths,
-      sectionTitle: `📋 Planning — ${teamName}`,
-      sectionSubtitle: `Diperbarui: ${updatedAt} · Total: ${items.length} task`,
-    });
-  },
+    // Pesan yang jelas jika BACKEND_URL salah atau backend mati
+    const isNetworkError =
+      err instanceof TypeError && err.message.includes("fetch");
 
-  async exportBacklog(
-    documentId: string,
-    items: BacklogItem[],
-    teamName: string,
-  ): Promise<void> {
-    const updatedAt = new Date().toLocaleString("id-ID", {
-      dateStyle: "full",
-      timeStyle: "short",
-    });
-
-    // Product Backlog — semua item tanpa filter priority khusus
-    const productItems = items;
-    const priorityItems = items.filter(
-      (i) => i.priority === "urgent" || i.priority === "high",
+    return NextResponse.json(
+      {
+        error: "NETWORK_ERROR",
+        message: isNetworkError
+          ? `Tidak bisa reach backend di ${BACKEND_URL}. Cek BACKEND_URL env var.`
+          : "Terjadi kesalahan saat menghubungi backend.",
+      },
+      { status: 502 },
     );
+  }
+}
+```
 
-    // ── Product Backlog table ──
-    const productHeader = [
-      "No",
-      "ID",
-      "Nama Fitur",
-      "Deskripsi",
-      "Target User",
-    ];
-    const productRows = productItems.map((item, idx) => [
-      String(idx + 1),
-      `${item.teamSlug}-${item.number}`,
-      item.title ?? "",
-      item.description ?? "-",
-      item.targetUser ?? "Belum ditentukan",
-    ]);
-    // No(24) + ID(54) + Fitur(130) + Deskripsi(180) + User(80)
-    const productWidths = [24, 54, 130, 180, 80];
+### 2C — Fix Proxy Route Auth Register
 
-    await writeSectionToDoc({
-      documentId,
-      exportType: "backlog",
-      headerRow: productHeader,
-      dataRows: productRows,
-      columnWidths: productWidths,
-      sectionTitle: `📦 Product Backlog — ${teamName}`,
-      sectionSubtitle: `Diperbarui: ${updatedAt} · Total: ${productItems.length} item`,
+**File: `apps/web/src/app/api/auth/register/route.ts`**
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { BACKEND_URL, safeJson } from "@/app/api/_lib/proxy";
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const response = await fetch(`${BACKEND_URL}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
 
-    // ── Priority Backlog table — append ke section yang sama ──
-    // Karena exportType sama ('backlog'), marker sudah ada → akan mencari posisi
-    // dan menulis setelah tabel pertama. Kita perlu section terpisah untuk priority.
-    // Solusi: gunakan exportType unik 'backlog-priority' dengan marker sendiri.
-    // Tapi karena MARKERS hanya punya 3 tipe, kita append priority ke dokumen
-    // secara manual setelah section backlog utama.
+    const data = await safeJson(response);
 
-    if (priorityItems.length > 0) {
-      const priorityHeader = ["No", "ID", "Nama Fitur", "Prioritas", "Alasan"];
-      const priorityRows = priorityItems.map((item, idx) => [
-        String(idx + 1),
-        `${item.teamSlug}-${item.number}`,
-        item.title ?? "",
-        fmtPriority(item.priority),
-        item.reason ?? "Tidak ada alasan tercatat",
-      ]);
-      // No(24) + ID(54) + Fitur(130) + Prioritas(60) + Alasan(200)
-      const priorityWidths = [24, 54, 130, 60, 200];
-
-      // Append priority tabel sebagai sub-section — gunakan marker berbeda
-      await appendSubSection({
-        documentId,
-        headerRow: priorityHeader,
-        dataRows: priorityRows,
-        columnWidths: priorityWidths,
-        sectionTitle: `⚡ Priority Backlog — ${teamName}`,
-        sectionSubtitle: `${priorityItems.length} item prioritas tinggi/urgent`,
-        anchorMarker: MARKERS.backlog.end,
-      });
+    if (!response.ok) {
+      console.error("[proxy /auth/register]", response.status, data);
+      return NextResponse.json(data, { status: response.status });
     }
-  },
 
-  async exportExecution(
-    documentId: string,
-    items: ExecutionItem[],
-    teamName: string,
-  ): Promise<void> {
-    const updatedAt = new Date().toLocaleString("id-ID", {
-      dateStyle: "full",
-      timeStyle: "short",
+    return NextResponse.json(data, { status: 201 });
+  } catch (err) {
+    console.error("[proxy /auth/register] network error:", err);
+    return NextResponse.json(
+      { error: "NETWORK_ERROR", message: "Tidak bisa menghubungi backend." },
+      { status: 502 },
+    );
+  }
+}
+```
+
+### 2D — Fix Proxy Route Auth Refresh
+
+**File: `apps/web/src/app/api/auth/refresh/route.ts`**
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { BACKEND_URL, safeJson } from "@/app/api/_lib/proxy";
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const response = await fetch(`${BACKEND_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
 
-    const headerRow = [
-      "No",
-      "Task ID",
-      "Aktivitas",
-      "Ditugaskan ke",
-      "Status",
-      "Tgl Update",
-      "Catatan",
-    ];
+    const data = await safeJson(response);
 
-    const dataRows = items.map((item, idx) => [
-      String(idx + 1),
-      `${item.teamSlug}-${item.number}`,
-      item.title ?? "",
-      item.assignedUser ?? "Unassigned",
-      fmtStatus(item.status),
-      new Date(item.updatedAt).toLocaleDateString("id-ID", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }),
-      item.notes ?? "Tidak ada catatan",
-    ]);
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
+    }
 
-    // No(24) + TaskID(54) + Aktivitas(110) + Assignee(72) + Status(54) + Tgl(64) + Catatan(90)
-    const columnWidths = [24, 54, 110, 72, 54, 64, 90];
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error("[proxy /auth/refresh] network error:", err);
+    return NextResponse.json(
+      { error: "NETWORK_ERROR", message: "Gagal refresh token." },
+      { status: 502 },
+    );
+  }
+}
+```
 
-    await writeSectionToDoc({
-      documentId,
-      exportType: "execution",
-      headerRow,
-      dataRows,
-      columnWidths,
-      sectionTitle: `⚡ Execution — ${teamName}`,
-      sectionSubtitle: `Diperbarui: ${updatedAt} · Total: ${items.length} aktivitas`,
+### 2E — Fix Proxy Route Auth Logout
+
+**File: `apps/web/src/app/api/auth/logout/route.ts`**
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { BACKEND_URL, safeJson, forwardAuth } from "@/app/api/_lib/proxy";
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json().catch(() => ({}));
+
+    const response = await fetch(`${BACKEND_URL}/auth/logout`, {
+      method: "POST",
+      headers: forwardAuth(request),
+      body: JSON.stringify(body),
     });
-  },
-};
 
-// ─── Helper: Append Sub-Section (untuk Priority Backlog) ─────────────────────
-// Insert tabel tambahan SETELAH end marker sebuah section
-
-async function appendSubSection(params: {
-  documentId: string;
-  headerRow: string[];
-  dataRows: string[][];
-  columnWidths: number[];
-  sectionTitle: string;
-  sectionSubtitle: string;
-  anchorMarker: string; // teks marker yang menjadi anchor insert point
-}): Promise<void> {
-  const {
-    documentId,
-    headerRow,
-    dataRows,
-    columnWidths,
-    sectionTitle,
-    sectionSubtitle,
-    anchorMarker,
-  } = params;
-
-  const auth = getGoogleAuth();
-  const docs = google.docs({ version: "v1", auth });
-  const allRows = [headerRow, ...dataRows];
-
-  // Cari posisi anchor marker
-  const doc1 = await docs.documents.get({ documentId });
-  const content1 = doc1.data.body?.content ?? [];
-
-  let anchorIndex = -1;
-  for (const el of content1) {
-    if (!el.paragraph) continue;
-    const text = (el.paragraph.elements ?? [])
-      .map((e) => e.textRun?.content ?? "")
-      .join("")
-      .trim();
-    if (text === anchorMarker) {
-      anchorIndex = el.endIndex ?? 0;
-      break;
-    }
+    const data = await safeJson(response);
+    return NextResponse.json(data, {
+      status: response.ok ? 200 : response.status,
+    });
+  } catch (err) {
+    console.error("[proxy /auth/logout] network error:", err);
+    return NextResponse.json(
+      { error: "NETWORK_ERROR", message: "Gagal logout." },
+      { status: 502 },
+    );
   }
-
-  if (anchorIndex === -1) {
-    // Anchor tidak ditemukan, append ke akhir
-    const lastEl = content1[content1.length - 1];
-    anchorIndex = Math.max(1, (lastEl?.endIndex ?? 2) - 1);
-  }
-
-  // Insert heading + tabel kosong
-  const { requests: headingReqs, textLength: headingLen } =
-    buildHeadingRequests(anchorIndex, sectionTitle, sectionSubtitle);
-
-  const tableInsertIndex = anchorIndex + headingLen;
-
-  await docs.documents.batchUpdate({
-    documentId,
-    requestBody: {
-      requests: [
-        ...headingReqs,
-        {
-          insertTable: {
-            rows: allRows.length,
-            columns: headerRow.length,
-            location: { index: tableInsertIndex },
-          },
-        },
-      ],
-    },
-  });
-
-  // Re-fetch + isi cell
-  const doc2 = await docs.documents.get({ documentId });
-  const content2 = doc2.data.body?.content ?? [];
-  const cellMatrix = extractTableCells(content2);
-
-  // Cari tabel yang baru dibuat (setelah anchorIndex)
-  const tables2 = content2.filter((el) => el.table);
-  let tIdx = tables2.length - 1;
-  for (let i = 0; i < tables2.length; i++) {
-    if ((tables2[i].startIndex ?? 0) >= tableInsertIndex) {
-      tIdx = i;
-      break;
-    }
-  }
-
-  const pass2Reqs: docs_v1.Schema$Request[] = [
-    ...buildColumnWidthRequests(content2, tIdx, columnWidths),
-    ...buildRowColorRequests(content2, tIdx),
-    ...buildFillCellRequests(cellMatrix[tIdx] ?? [], allRows),
-  ];
-
-  await docs.documents.batchUpdate({
-    documentId,
-    requestBody: { requests: pass2Reqs },
-  });
-
-  // Pass 3: style header
-  const doc3 = await docs.documents.get({ documentId });
-  const content3 = doc3.data.body?.content ?? [];
-  const tables3 = content3.filter((el) => el.table);
-  const tIdx3 = tables3.length - 1; // tabel terakhir = yang baru saja dibuat
-
-  await docs.documents.batchUpdate({
-    documentId,
-    requestBody: { requests: buildHeaderStyleRequests(content3, tIdx3) },
-  });
 }
 ```
 
 ---
 
-## Hasil Visual di Google Docs
+## LANGKAH 3 — Cek Struktur Folder Proxy Route
 
-Setelah implementasi, tampilan di Google Docs akan seperti ini:
+Jalankan perintah ini untuk memastikan semua file ada:
 
-### Planning
-
-```
-📋 Planning — Tim Engineering                    ← Heading 2, bold, navy
-Diperbarui: Rabu, 21 April 2026 · Total: 12 task ← italic, abu-abu kecil
-
-┌────┬────────────┬──────────────────┬──────────────────┬───────────────┬─────────┬──────────┬────────────┐
-│ No │ Task ID    │ Nama Tugas       │ Expected Output  │ Ditugaskan ke │ Status  │ Prioritas│ Dibuat oleh│
-│    │            │                  │                  │               │         │          │            │
-├────┼────────────┼──────────────────┼──────────────────┼───────────────┼─────────┼──────────┼────────────┤  ← baris putih
-│ 1  │ PERDIG-1   │ Fix login bug    │ User bisa login  │ Budi          │ In Prog │ Tinggi🟠 │ Uta        │
-├────┼────────────┼──────────────────┼──────────────────┼───────────────┼─────────┼──────────┼────────────┤  ← baris biru muda
-│ 2  │ PERDIG-2   │ Dark mode        │ Toggle tersedia  │ Sari          │ To Do   │ Sedang🟡 │ Uta        │
-└────┴────────────┴──────────────────┴──────────────────┴───────────────┴─────────┴──────────┴────────────┘
-
-Header: #1a73e8 bg + teks putih bold
-Alternating: putih / #e8f0fe (biru muda)
+```bash
+find apps/web/src/app/api -name "route.ts" | sort
 ```
 
-### Backlog
+Output yang diharapkan (minimal untuk auth):
 
 ```
-📦 Product Backlog — Tim Engineering
-Diperbarui: ... · Total: 8 item
-
-┌────┬────────────┬────────────────────────────────┬──────────────────────────────────────┬──────────────────┐
-│ No │ ID         │ Nama Fitur                      │ Deskripsi                            │ Target User      │
-├────┼────────────┼────────────────────────────────┼──────────────────────────────────────┼──────────────────┤
-...
-
-⚡ Priority Backlog — Tim Engineering
-3 item prioritas tinggi/urgent
-
-┌────┬────────────┬────────────────────────────────┬──────────────┬──────────────────────────────────────────┐
-│ No │ ID         │ Nama Fitur                      │ Prioritas    │ Alasan                                   │
-├────┼────────────┼────────────────────────────────┼──────────────┼──────────────────────────────────────────┤
+apps/web/src/app/api/_lib/proxy.ts
+apps/web/src/app/api/auth/login/route.ts
+apps/web/src/app/api/auth/register/route.ts
+apps/web/src/app/api/auth/refresh/route.ts
+apps/web/src/app/api/auth/logout/route.ts
+apps/web/src/app/api/users/me/route.ts
+apps/web/src/app/api/teams/route.ts
+apps/web/src/app/api/teams/[teamSlug]/issues/route.ts
 ...
 ```
 
----
-
-## Ringkasan Perubahan
-
-| File                                              | Aksi                                              |
-| ------------------------------------------------- | ------------------------------------------------- |
-| `apps/server/src/services/google-docs.service.ts` | **TIMPA SELURUH ISI** dengan implementasi di atas |
-
-**Semua file lain tidak perlu diubah** — frontend, proxy route, `export.routes.ts`, hooks, button component semuanya tetap sama.
+Jika ada yang tidak ada → buat file tersebut dengan pola yang sama dari Langkah 2.
 
 ---
 
-## Troubleshooting
+## LANGKAH 4 — Pastikan `http.ts` Frontend Hit `/api/*` (Bukan Backend Langsung)
 
-### Tabel terbuat tapi cell kosong
+**File: `apps/web/src/lib/core/http.ts`**
 
-Kemungkinan `targetTableIndex` salah — dokumen sudah punya tabel lain sebelumnya.
-Debug: tambahkan `console.log('Tables found:', allTables.map(t => t.startIndex))` setelah re-fetch dan lihat indexnya.
+Cek `BASE_URL` yang dipakai:
 
-### Error `Invalid requests[0].insertTable: Index N is not at a valid location`
+```typescript
+// BENAR — hit Next.js proxy route
+const BASE_URL = ""; // empty string = relative URL ke domain yang sama
 
-Index insert ada di tengah elemen lain. Pastikan `tableInsertIndex` dihitung setelah `headingLen` dengan benar. Tambahkan `console.log('tableInsertIndex:', tableInsertIndex)` untuk debug.
+// ATAU
+const BASE_URL =
+  typeof window !== "undefined"
+    ? "" // client-side: relative URL
+    : (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001"); // server-side
+```
 
-### Header styling tidak muncul
+```typescript
+// SALAH — hit backend langsung, bypass proxy
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+//                                      ↑ Ini URL backend, bukan frontend
+```
 
-Pass 3 dilakukan setelah pass 2 selesai — pastikan tidak ada promise yang tidak di-await. Cek urutan `await` di semua pass.
+Jika `BASE_URL` mengarah langsung ke backend (`api-amertask.vercel.app`),
+frontend browser akan kena CORS error. Semua request harus lewat `/api/*` di Next.js sendiri.
 
-### Priority Backlog tidak muncul
+Pola yang benar di `http.ts`:
 
-Cek apakah `priorityItems.length > 0`. Jika semua item priority-nya `medium` atau `low`, section ini tidak akan dibuat. Tambahkan log: `console.log('Priority items:', priorityItems.length)`.
+```typescript
+// BASE_URL kosong = request ke /api/... di domain yang sama (task-amertarva.vercel.app)
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
+
+export async function apiClient<T = unknown>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  // path harus diawali /api/...
+  // contoh: /api/auth/login, /api/teams, /api/teams/PERDIG/issues
+  const url = `${BASE_URL}${path}`;
+
+  // ... sisa implementasi
+}
+```
 
 ---
 
-_Upgrade: Google Docs Table Format — Amertask/TaskOps | April 2026_
+## LANGKAH 5 — Verifikasi Env Vars Frontend di Vercel
+
+Pastikan env vars berikut sudah ada di project **frontend** Vercel
+(`task-amertarva` — bukan project backend):
+
+```
+BACKEND_URL           = https://api-amertask.vercel.app
+NEXT_PUBLIC_APP_URL   = https://task-amertarva.vercel.app
+```
+
+> **`BACKEND_URL`** — dipakai server-side (Next.js API routes) untuk hit backend.
+> **`NEXT_PUBLIC_APP_URL`** — dipakai client-side untuk tahu URL dirinya sendiri.
+> Keduanya berbeda — jangan samakan.
+
+---
+
+## LANGKAH 6 — Verifikasi Env Vars Backend di Vercel
+
+Pastikan env vars berikut ada di project **backend** Vercel (`api-amertask`):
+
+```
+FRONTEND_URL          = https://task-amertarva.vercel.app
+```
+
+Ini untuk konfigurasi CORS di backend. Jika salah, backend akan tolak request
+dari frontend dengan CORS error (meski error-nya mungkin terlihat sebagai 500
+di log frontend).
+
+---
+
+## LANGKAH 7 — Test Manual Setelah Fix
+
+```bash
+# 1. Test backend langsung (bypass proxy)
+curl -X POST https://api-amertask.vercel.app/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+# Expected: { "user": {...}, "accessToken": "..." } atau error yang jelas
+
+# 2. Test proxy Next.js
+curl -X POST https://task-amertarva.vercel.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+# Expected: sama seperti di atas — proxy harus forward dan return response yang sama
+
+# 3. Cek BACKEND_URL sudah terbaca oleh Next.js
+curl https://task-amertarva.vercel.app/api/health-check
+```
+
+Buat health check route untuk diagnosis:
+
+**File: `apps/web/src/app/api/health-check/route.ts`** (hapus setelah selesai debug):
+
+```typescript
+import { NextResponse } from "next/server";
+
+export async function GET() {
+  // Cek apakah BACKEND_URL terbaca oleh Next.js
+  const backendUrl = process.env.BACKEND_URL;
+
+  // Coba reach backend
+  let backendStatus = "tidak dicek";
+  if (backendUrl) {
+    try {
+      const res = await fetch(`${backendUrl}/health`, { method: "GET" });
+      backendStatus = res.ok
+        ? `✓ OK (${res.status})`
+        : `✗ Error (${res.status})`;
+    } catch (err) {
+      backendStatus = `✗ Network error: ${String(err)}`;
+    }
+  }
+
+  return NextResponse.json({
+    BACKEND_URL: backendUrl ?? "✗ TIDAK DI-SET",
+    backendStatus,
+    NODE_ENV: process.env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+  });
+}
+```
+
+Akses `https://task-amertarva.vercel.app/api/health-check` dan lihat hasilnya.
+
+---
+
+## Urutan Eksekusi
+
+```
+1. Set BACKEND_URL di Vercel frontend (Langkah 1) → Redeploy
+2. Deploy health-check route (Langkah 7) → cek apakah BACKEND_URL terbaca
+3. Jika BACKEND_URL ok tapi masih 500 → fix proxy route (Langkah 2)
+4. Jika proxy route ok tapi CORS error → fix FRONTEND_URL di backend (Langkah 6)
+5. Hapus health-check route setelah semua beres
+```
+
+---
+
+## Ringkasan File yang Diubah
+
+| File                                          | Aksi                                                 |
+| --------------------------------------------- | ---------------------------------------------------- |
+| Vercel Dashboard → frontend env vars          | Tambah `BACKEND_URL`                                 |
+| Vercel Dashboard → backend env vars           | Cek `FRONTEND_URL`                                   |
+| `apps/web/src/app/api/_lib/proxy.ts`          | Edit — tambah validasi + `.replace(/\/$/, '')`       |
+| `apps/web/src/app/api/auth/login/route.ts`    | Edit — tambah error handling                         |
+| `apps/web/src/app/api/auth/register/route.ts` | Edit — tambah error handling                         |
+| `apps/web/src/app/api/auth/refresh/route.ts`  | Edit — tambah error handling                         |
+| `apps/web/src/app/api/auth/logout/route.ts`   | Edit — tambah error handling                         |
+| `apps/web/src/lib/core/http.ts`               | Cek BASE_URL arah ke `/api/*` bukan backend langsung |
+| `apps/web/src/app/api/health-check/route.ts`  | Buat sementara untuk diagnosis                       |
+
+---
+
+_Fix: 500 Error Proxy Route — task-amertarva.vercel.app | April 2026_

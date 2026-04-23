@@ -1,27 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BACKEND_URL } from "@/app/api/_lib/proxy";
+import { guardBackendUrl, fetchBackend, safeJson, forwardAuth } from "@/app/api/_lib/proxy";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const authHeader = request.headers.get("authorization");
+  const configError = guardBackendUrl(request);
+  if (configError) {
+    return NextResponse.json(configError, { status: 503 });
+  }
 
-    const response = await fetch(`${BACKEND_URL}/auth/logout`, {
+  try {
+    const body = await request.json().catch(() => ({}));
+
+    const response = await fetchBackend("/auth/logout", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(authHeader ? { Authorization: authHeader } : {}),
-      },
+      headers: forwardAuth(request),
       body: JSON.stringify(body),
     });
 
-    if (response.status === 204) {
-      return new NextResponse(null, { status: 204 });
-    }
-
-    const data = await response.json();
+    const data = (await safeJson(response)) as any;
 
     if (!response.ok) {
+      console.error("[proxy /auth/logout]", response.status, data);
       return NextResponse.json(data, { status: response.status });
     }
 
@@ -29,8 +29,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Logout API error:", error);
     return NextResponse.json(
-      { error: "INTERNAL_ERROR", message: "Terjadi kesalahan server" },
-      { status: 500 },
+      {
+        error: "INTERNAL_ERROR",
+        message:
+          error instanceof Error ? error.message : "Terjadi kesalahan server",
+      },
+      { status: 502 },
     );
   }
 }
