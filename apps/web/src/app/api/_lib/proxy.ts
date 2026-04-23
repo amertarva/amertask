@@ -41,12 +41,52 @@ if (
 }
 
 if (!BACKEND_URL) {
-  console.warn(
-    "⚠️ BACKEND_URL belum valid. Set BACKEND_URL ke URL backend absolut agar route /api/* dapat mem-forward request.",
+  console.error(
+    "❌ BACKEND_URL belum valid. Set BACKEND_URL ke URL backend absolut (mis. https://api-amertask.vercel.app) agar route /api/* dapat mem-forward request.",
   );
 }
 
 export { BACKEND_URL };
+
+export function guardBackendUrl(): { error: string; message: string } | null {
+  if (!BACKEND_URL) {
+    return {
+      error: "CONFIG_ERROR",
+      message:
+        "Backend URL belum dikonfigurasi. Hubungi administrator untuk set BACKEND_URL di environment variables.",
+    };
+  }
+  return null;
+}
+
+const FETCH_TIMEOUT_MS = 15_000;
+
+export async function fetchBackend(
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
+  const url = `${BACKEND_URL}${path}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+    return response;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        `Backend timeout: request ke ${path} melebihi ${FETCH_TIMEOUT_MS / 1000} detik`,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 export async function safeJson(response: Response): Promise<unknown> {
   const contentType = response.headers.get("content-type") ?? "";

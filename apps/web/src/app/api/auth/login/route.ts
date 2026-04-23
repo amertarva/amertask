@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { BACKEND_URL } from "@/app/api/_lib/proxy";
+import { guardBackendUrl, fetchBackend } from "@/app/api/_lib/proxy";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  const configError = guardBackendUrl();
+  if (configError) {
+    return NextResponse.json(configError, { status: 503 });
+  }
+
   try {
     const body = await request.json();
 
@@ -16,12 +23,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("🔐 Login request:", {
-      email: body.email,
-      backendUrl: BACKEND_URL,
-    });
+    console.log("🔐 Login request:", { email: body.email });
 
-    const response = await fetch(`${BACKEND_URL}/auth/login`, {
+    const response = await fetchBackend("/auth/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -41,14 +45,14 @@ export async function POST(request: NextRequest) {
     let data;
     try {
       data = JSON.parse(text);
-    } catch (parseError) {
+    } catch {
       console.error("❌ Failed to parse response as JSON:", text);
       return NextResponse.json(
         {
           error: "BACKEND_ERROR",
           message: "Backend error: " + text.substring(0, 100),
         },
-        { status: 500 },
+        { status: 502 },
       );
     }
 
@@ -71,7 +75,7 @@ export async function POST(request: NextRequest) {
         message:
           error instanceof Error ? error.message : "Terjadi kesalahan server",
       },
-      { status: 500 },
+      { status: 502 },
     );
   }
 }
