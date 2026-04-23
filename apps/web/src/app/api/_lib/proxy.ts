@@ -59,7 +59,7 @@ if (!BACKEND_URL) {
 
 export { BACKEND_URL };
 
-export function guardBackendUrl(): { error: string; message: string } | null {
+export function guardBackendUrl(request?: Request): { error: string; message: string } | null {
   if (!BACKEND_URL) {
     return {
       error: "CONFIG_ERROR",
@@ -69,6 +69,18 @@ export function guardBackendUrl(): { error: string; message: string } | null {
 
   try {
     const url = new URL(BACKEND_URL);
+    
+    // Loop detection
+    if (request) {
+      const currentHost = request.headers.get("host");
+      if (currentHost && url.hostname === currentHost.split(":")[0]) {
+        return {
+          error: "CONFIG_ERROR",
+          message: "🚨 Infinite Loop Terdeteksi: BACKEND_URL mengarah ke URL frontend sendiri. Ubah BACKEND_URL ke URL backend (api-amertask.vercel.app).",
+        };
+      }
+    }
+
     if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && process.env.NODE_ENV === "production") {
       return {
         error: "CONFIG_ERROR",
@@ -128,6 +140,15 @@ export async function safeJson(response: Response): Promise<unknown> {
   }
 
   const text = await response.text();
+  
+  // Detect if we got HTML instead of JSON
+  if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+    return {
+      error: "HTML_RESPONSE_ERROR",
+      message: "Proxy menerima HTML bukan JSON. Pastikan BACKEND_URL mengarah ke API (https://api-amertask.vercel.app) bukan ke URL frontend sendiri.",
+    };
+  }
+
   return {
     error: "BACKEND_ERROR",
     message: text || "Terjadi kesalahan di server",

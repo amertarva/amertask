@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { guardBackendUrl, fetchBackend } from "@/app/api/_lib/proxy";
+import { guardBackendUrl, fetchBackend, safeJson } from "@/app/api/_lib/proxy";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const configError = guardBackendUrl();
+  const configError = guardBackendUrl(request);
   if (configError) {
     return NextResponse.json(configError, { status: 503 });
   }
@@ -20,17 +20,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
 
-    const text = await response.text();
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      return NextResponse.json(
-        { error: "BACKEND_ERROR", message: "Invalid response from backend" },
-        { status: 502 },
-      );
-    }
+    const data = await safeJson(response);
 
     if (!response.ok) {
       return NextResponse.json(data, { status: response.status });

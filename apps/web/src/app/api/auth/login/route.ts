@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { guardBackendUrl, fetchBackend } from "@/app/api/_lib/proxy";
+import { guardBackendUrl, fetchBackend, safeJson } from "@/app/api/_lib/proxy";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const configError = guardBackendUrl();
+  // Fail-fast if BACKEND_URL is not configured or looping
+  const configError = guardBackendUrl(request);
   if (configError) {
     return NextResponse.json(configError, { status: 503 });
   }
@@ -33,28 +34,10 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
 
-    // Get response text first to handle non-JSON responses
-    const text = await response.text();
-    console.log("📥 Backend raw response:", {
+    const data = await safeJson(response);
+    console.log("✅ Backend response parsed:", {
       status: response.status,
-      contentType: response.headers.get("content-type"),
-      body: text.substring(0, 200),
     });
-
-    // Try to parse as JSON
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      console.error("❌ Failed to parse response as JSON:", text);
-      return NextResponse.json(
-        {
-          error: "BACKEND_ERROR",
-          message: "Backend error: " + text.substring(0, 100),
-        },
-        { status: 502 },
-      );
-    }
 
     console.log("✅ Backend response:", {
       status: response.status,
