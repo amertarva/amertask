@@ -11,3 +11,4 @@ export { EmptyState } from "./EmptyState";
 export { Dropdown } from "./Dropdown";
 export { Tooltip } from "./Tooltip";
 export { ExportToDocsButton } from "./ExportToDocsButton";
+export { Skeleton } from "./Skeleton";

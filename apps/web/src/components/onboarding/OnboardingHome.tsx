@@ -15,6 +15,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { useTeams } from "@/hooks/useTeams";
 import { useUserActivity } from "@/hooks/useUserActivity";
 import { JoinTeamInviteAlert } from "@/components/dashboard/team/join/JoinTeamInviteAlert";
+import { Skeleton } from "@/components/ui";
 
 export function OnboardingHome() {
   const { user, status } = useAuthContext();
@@ -47,10 +48,19 @@ export function OnboardingHome() {
   // Auth is still being resolved, show a stable loading state instead of empty project state.
   if (status === "loading") {
     return (
-      <div className="min-h-full flex items-center justify-center p-6">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-          <p className="text-text-muted">Memuat data...</p>
+      <div className="min-h-full flex flex-col p-4 sm:p-6 lg:p-8 space-y-8 w-full">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border pb-6">
+          <div className="space-y-3">
+            <Skeleton className="h-8 w-64 bg-muted/60" />
+            <Skeleton className="h-4 w-40 bg-muted/60" />
+          </div>
+        </div>
+        <div className="space-y-6">
+          <Skeleton className="h-8 w-48 bg-muted/60" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <Skeleton className="h-[200px] rounded-3xl bg-muted/60" />
+            <Skeleton className="h-[200px] rounded-3xl bg-muted/60" />
+          </div>
         </div>
       </div>
     );
@@ -62,23 +72,23 @@ export function OnboardingHome() {
   }
 
   return (
-    <div className="min-h-full flex flex-col p-6 lg:p-8 pb-24 animate-fade-in w-full space-y-10">
+    <div className="min-h-full flex flex-col p-4 sm:p-6 lg:p-8 pb-24 animate-fade-in w-full space-y-8 sm:space-y-10 overflow-x-hidden">
       <JoinTeamInviteAlert refreshTeams={refetchTeams} />
 
       {/* 1. Header Selamat Datang */}
-      <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 border-b border-border pb-8">
-        <div>
+      <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 border-b border-border pb-6 sm:pb-8">
+        <div className="w-full">
           <h1
-            className="text-3xl font-extrabold text-text tracking-tight animate-fade-in"
+            className="text-2xl sm:text-3xl font-extrabold text-text tracking-tight animate-fade-in break-words"
             style={{ animationDelay: "0.1s" }}
           >
             Selamat datang, <span className="text-primary">{user.name}</span> 👋
           </h1>
           <p
-            className="text-text-muted mt-2 font-medium flex items-center gap-2 animate-fade-in"
+            className="text-sm sm:text-base text-text-muted mt-2 font-medium flex items-center gap-2 animate-fade-in"
             style={{ animationDelay: "0.2s" }}
           >
-            <Calendar className="w-4 h-4" /> {today}
+            <Calendar className="w-4 h-4 shrink-0" /> <span className="truncate">{today}</span>
           </p>
         </div>
       </section>
@@ -92,10 +102,10 @@ export function OnboardingHome() {
           <Folder className="w-6 h-6 text-primary" /> Ruang Kerja Anda
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
           {/* Card 1 — Buat Proyek Baru */}
-          <Link href="/home/new-project" className="group h-full">
-            <div className="h-full border-2 border-dashed border-primary/30 hover:border-primary bg-primary/5 hover:bg-primary/10 rounded-3xl p-8 flex flex-col items-center justify-center text-center transition-all cursor-pointer shadow-sm hover:shadow-primary/20">
+          <Link href="/home/new-project" className="group h-full min-h-[200px]">
+            <div className="h-full border-2 border-dashed border-primary/30 hover:border-primary bg-primary/5 hover:bg-primary/10 rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center transition-all cursor-pointer shadow-sm hover:shadow-primary/20">
               <div className="w-16 h-16 bg-foreground/10 text-foreground rounded-2xl flex items-center justify-center shadow-sm border border-foreground/20 group-hover:scale-110 transition-transform mb-4 rotate-3 group-hover:rotate-6">
                 <PlusCircle className="w-8 h-8" />
               </div>
@@ -110,14 +120,14 @@ export function OnboardingHome() {
 
           {/* Card 2 — Proyek Existing (Real Data) */}
           {teamsLoading ? (
-            <div className="h-full border border-border bg-card rounded-3xl p-8 flex items-center justify-center">
+            <div className="h-full border border-border bg-card rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex items-center justify-center min-h-[200px]">
               <div className="text-center space-y-2">
                 <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" />
                 <p className="text-sm text-text-muted">Memuat proyek...</p>
               </div>
             </div>
           ) : teamsError ? (
-            <div className="h-full border border-border bg-card rounded-3xl p-8 flex flex-col items-center justify-center text-center">
+            <div className="h-full border border-border bg-card rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center min-h-[200px]">
               <div className="w-12 h-12 bg-priority-urgent/20 text-priority-urgent rounded-full flex items-center justify-center mb-4">
                 <Activity className="w-6 h-6" />
               </div>
@@ -143,8 +153,8 @@ export function OnboardingHome() {
             </div>
           ) : teams && teams.length > 0 ? (
             <Link href={`/projects/${teams[0].slug}`} className="group h-full">
-              <div className="h-full border border-border bg-card rounded-3xl p-8 transition-all hover:border-primary/50 hover:shadow-lg cursor-pointer flex flex-col">
-                <div className="flex justify-between items-start mb-6">
+              <div className="h-full border border-border bg-card rounded-2xl sm:rounded-3xl p-6 sm:p-8 transition-all hover:border-primary/50 hover:shadow-lg cursor-pointer flex flex-col">
+                <div className="flex justify-between items-start mb-6 gap-4">
                   <div>
                     <h3 className="text-xl font-extrabold text-text group-hover:text-primary transition-colors">
                       {teams[0].name}
@@ -164,7 +174,7 @@ export function OnboardingHome() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-6 flex-1">
+                <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-3 sm:gap-4 mb-6 flex-1">
                   <div className="bg-background rounded-xl p-3 border border-border shadow-inner">
                     <p className="text-[10px] uppercase font-bold text-text-subtle mb-1">
                       Status
@@ -208,7 +218,7 @@ export function OnboardingHome() {
               </div>
             </Link>
           ) : isEmpty ? (
-            <div className="h-full border border-border bg-card rounded-3xl p-8 flex flex-col items-center justify-center text-center">
+            <div className="h-full border border-border bg-card rounded-2xl sm:rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center min-h-[200px]">
               <Folder className="w-12 h-12 text-text-muted mb-4" />
               <h3 className="text-lg font-bold text-text mb-2">
                 Belum Ada Proyek
@@ -283,11 +293,11 @@ export function OnboardingHome() {
           <Activity className="w-6 h-6 text-primary" /> Riwayat Aktivitas Ops
         </h2>
 
-        <div className="bg-card border border-border rounded-3xl p-8 shadow-sm">
+        <div className="bg-card border border-border rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-sm">
           {/* Heatmap Area (Mock) - GitHub Style */}
-          <div className="flex flex-col xl:flex-row gap-8 items-start">
+          <div className="flex flex-col xl:flex-row gap-6 xl:gap-8 items-start w-full max-w-full">
             {/* Graph Container */}
-            <div className="flex-1 overflow-x-auto pb-4">
+            <div className="flex-1 overflow-x-auto pb-4 w-full -mx-5 px-5 sm:mx-0 sm:px-0 scrollbar-hide">
               <div className="min-w-[850px] inline-flex flex-col">
                 {/* Month Labels */}
                 <div className="flex ml-9 text-[11px] text-text-muted font-medium mb-1 relative h-4">
@@ -395,11 +405,11 @@ export function OnboardingHome() {
                 </div>
 
                 {/* Legend */}
-                <div className="flex justify-between items-center mt-4 ml-9 w-[829px]">
-                  <span className="text-[11px] text-text-muted font-medium hover:text-primary transition-colors cursor-pointer">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-4 ml-0 sm:ml-9 w-[850px] sm:w-[829px] gap-3 sm:gap-0">
+                  <span className="text-[11px] text-text-muted font-medium hover:text-primary transition-colors cursor-pointer px-1">
                     Pelajari bagaimana kami mengkalkulasi kontribusi
                   </span>
-                  <div className="flex items-center gap-2 text-[10px] text-text-muted font-medium">
+                  <div className="flex items-center gap-2 text-[10px] text-text-muted font-medium px-1">
                     <span>Lebih Sedikit</span>
                     <div className="flex gap-[3px]">
                       <div className="w-[13px] h-[13px] rounded-[2px] bg-black/5 border-black/5 dark:bg-card/5 dark:border-primary-foreground/5 border"></div>
@@ -415,7 +425,7 @@ export function OnboardingHome() {
             </div>
 
             {/* Year Selector */}
-            <div className="w-full xl:w-32 flex flex-row xl:flex-col gap-2 shrink-0 pt-4 xl:pt-0 overflow-x-auto no-scrollbar">
+            <div className="w-full xl:w-32 flex flex-row xl:flex-col gap-2 shrink-0 pt-2 sm:pt-4 xl:pt-0 overflow-x-auto scrollbar-hide">
               <button className="px-4 py-2 text-sm font-bold bg-primary text-primary-foreground rounded-lg shadow-sm whitespace-nowrap text-left w-full border border-primary dark:border-transparent transition-all">
                 2026
               </button>
@@ -429,7 +439,7 @@ export function OnboardingHome() {
           </div>
 
           {/* Stats Bar */}
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t border-border">
+          <div className="mt-6 sm:mt-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-6 border-t border-border">
             <div className="flex items-center gap-4 bg-background border border-border p-4 rounded-2xl shadow-inner">
               <div className="w-12 h-12 bg-status-done/20 text-status-done rounded-xl flex items-center justify-center">
                 <CheckCircle2 className="w-6 h-6" />

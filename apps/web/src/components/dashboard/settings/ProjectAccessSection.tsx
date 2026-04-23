@@ -3,8 +3,8 @@ import { Users } from "lucide-react";
 export function ProjectAccessSection() {
   return (
     <div className="animate-fade-in">
-      <div className="bg-card border border-border rounded-3xl p-8 shadow-sm">
-        <h2 className="text-2xl font-extrabold text-text mb-2">Akses dan Role</h2>
+      <div className="bg-card border border-border rounded-3xl p-6 sm:p-8 shadow-sm">
+        <h2 className="text-xl sm:text-2xl font-extrabold text-text mb-2">Akses dan Role</h2>
         <p className="text-sm font-medium text-text-muted mb-8">
           Pengaturan role member proyek sedang dalam tahap pengembangan.
         </p>

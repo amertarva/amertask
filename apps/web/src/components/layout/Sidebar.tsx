@@ -115,7 +115,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
     <aside
       className={cn(
         "border-r border-border bg-background flex flex-col h-full overflow-y-auto transition-all duration-300",
-        isCollapsed ? "w-20" : "w-64",
+        "absolute md:relative z-40 h-full",
+        isCollapsed ? "-translate-x-full md:translate-x-0 w-64 md:w-20" : "translate-x-0 w-64 shadow-2xl md:shadow-none",
       )}
     >
       {/* Navigation Links */}

@@ -22,10 +22,7 @@ const publicApiUrlFromEnv = process.env.NEXT_PUBLIC_API_URL ?? "";
 const normalizedBackendUrl = normalizeAbsoluteHttpUrl(backendUrlFromEnv);
 const normalizedPublicApiUrl = normalizeAbsoluteHttpUrl(publicApiUrlFromEnv);
 
-const BACKEND_URL =
-  normalizedBackendUrl ||
-  normalizedPublicApiUrl ||
-  (process.env.NODE_ENV !== "production" ? "http://localhost:3000" : "");
+const BACKEND_URL = normalizedBackendUrl || normalizedPublicApiUrl;
 
 if (backendUrlFromEnv.trim() && !normalizedBackendUrl) {
   console.warn(

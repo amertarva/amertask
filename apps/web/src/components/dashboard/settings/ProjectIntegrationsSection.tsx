@@ -12,8 +12,8 @@ export function ProjectIntegrationsSection({
   setForm,
 }: ProjectIntegrationsSectionProps) {
   return (
-    <div className="bg-card border border-border rounded-3xl p-8 shadow-sm">
-      <h2 className="text-2xl font-extrabold text-text mb-2">Integrasi</h2>
+    <div className="bg-card border border-border rounded-3xl p-6 sm:p-8 shadow-sm">
+      <h2 className="text-xl sm:text-2xl font-extrabold text-text mb-2">Integrasi</h2>
       <p className="text-sm font-medium text-text-muted">
         Hubungkan proyek dengan layanan eksternal untuk dokumentasi dan
         kolaborasi kode.

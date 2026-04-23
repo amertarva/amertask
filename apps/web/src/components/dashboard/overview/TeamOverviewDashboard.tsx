@@ -11,6 +11,27 @@ import {
   BarChart3,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Bar } from "react-chartjs-2";
+import { useThemeStore } from "@/store/useThemeStore";
+import { Skeleton } from "@/components/ui";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 import { StatCard } from "@/components/dashboard/overview/StatCard";
 import { ActivityItem } from "@/components/dashboard/overview/ActivityItem";
 import { useTeams } from "@/hooks/useTeams";
@@ -106,10 +127,64 @@ export function TeamOverviewDashboard({ teamSlug }: { teamSlug: string }) {
     [analytics?.completionTrend],
   );
 
-  const maxCompletionValue = useMemo(
-    () => Math.max(...completionTrend.map((point) => point.completed), 1),
-    [completionTrend],
-  );
+  const { colorTheme } = useThemeStore();
+  const isDark = colorTheme === "amerta-night";
+  const primaryColor = isDark ? "#4ade80" : "#16a34a";
+  const primaryBg = isDark ? "rgba(74, 222, 128, 0.2)" : "rgba(22, 163, 74, 0.2)";
+  const primaryHoverBg = isDark ? "rgba(74, 222, 128, 0.4)" : "rgba(22, 163, 74, 0.4)";
+
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)";
+  const textColor = isDark ? "#a1a1aa" : "#71717a";
+  const tooltipBg = isDark ? "#18181b" : "#ffffff";
+  const tooltipText = isDark ? "#ffffff" : "#000000";
+  const tooltipBorder = isDark ? "#27272a" : "#e4e4e7";
+
+  const chartData = useMemo(() => ({
+    labels: completionTrend.map((point) => 
+      new Date(point.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })
+    ),
+    datasets: [
+      {
+        label: "Penyelesaian",
+        data: completionTrend.map((point) => point.completed),
+        backgroundColor: primaryBg,
+        hoverBackgroundColor: primaryHoverBg,
+        borderColor: primaryColor,
+        borderWidth: 1,
+        borderRadius: 4,
+      }
+    ]
+  }), [completionTrend, primaryBg, primaryHoverBg, primaryColor]);
+
+  const chartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: tooltipBg,
+        titleColor: tooltipText,
+        bodyColor: textColor,
+        borderColor: tooltipBorder,
+        borderWidth: 1,
+        padding: 10,
+        displayColors: false,
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: { color: gridColor },
+        ticks: { color: textColor, precision: 0, stepSize: 1 },
+        border: { display: false }
+      },
+      x: {
+        grid: { display: false },
+        ticks: { color: textColor, font: { size: 11 } },
+        border: { display: false }
+      }
+    }
+  }), [gridColor, textColor, tooltipBg, tooltipText, tooltipBorder]);
 
   const recentIssues = useMemo(
     () =>
@@ -125,8 +200,28 @@ export function TeamOverviewDashboard({ teamSlug }: { teamSlug: string }) {
 
   if (teamLoading || issuesLoading || analyticsLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="h-full flex flex-col p-4 sm:p-6 lg:p-8 space-y-8 w-full animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+          <div className="space-y-3">
+            <Skeleton className="h-8 w-64 bg-muted/60" />
+            <Skeleton className="h-4 w-48 bg-muted/60" />
+          </div>
+          <Skeleton className="h-10 w-full sm:w-40 rounded-xl bg-muted/60" />
+        </div>
+
+        {/* Stats Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-2">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-[120px] rounded-2xl bg-muted/60" />
+          ))}
+        </div>
+
+        {/* Bottom Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="lg:col-span-2 h-[340px] rounded-2xl bg-muted/60" />
+          <Skeleton className="h-[340px] rounded-2xl bg-muted/60" />
+        </div>
       </div>
     );
   }
@@ -149,20 +244,20 @@ export function TeamOverviewDashboard({ teamSlug }: { teamSlug: string }) {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background p-6 lg:p-8 animate-fade-in overflow-y-auto w-full">
+    <div className="h-full flex flex-col bg-background p-4 sm:p-6 lg:p-8 animate-fade-in overflow-y-auto w-full overflow-x-hidden">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-extrabold text-text tracking-tight flex items-center gap-2">
+        <div className="w-full sm:w-auto">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-text tracking-tight flex items-center gap-2 break-words">
             Hai, Tim {teamName || teamSlug}!
           </h1>
           <p className="text-text-muted mt-2">
             Ini ringkasan aktivitas dan performa kerja Anda hari ini.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <Link
             href={`/projects/${teamSlug}/issues`}
-            className="bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-5 py-2.5 rounded-xl transition-all shadow hover:shadow-lg"
+            className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-5 py-3 sm:py-2.5 rounded-xl transition-all shadow hover:shadow-lg text-center"
           >
             Ke Papan Aktif (Board)
           </Link>
@@ -170,7 +265,7 @@ export function TeamOverviewDashboard({ teamSlug }: { teamSlug: string }) {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
         <StatCard
           title="Total Task"
           value={stats.total.toString()}
@@ -218,36 +313,8 @@ export function TeamOverviewDashboard({ teamSlug }: { teamSlug: string }) {
               </p>
             </div>
           ) : (
-            <div className="h-64 flex items-end justify-between gap-2 border-b border-border pb-4">
-              {completionTrend.map((point) => {
-                const normalized = Math.round(
-                  (point.completed / maxCompletionValue) * 100,
-                );
-                const barHeight = Math.max(normalized, 8);
-
-                return (
-                  <div
-                    key={point.date}
-                    className="flex-1 flex flex-col items-center gap-2 group"
-                  >
-                    <div
-                      className="w-full bg-primary/20 rounded-t-lg relative group-hover:bg-primary/30 transition-all cursor-pointer"
-                      style={{ height: `${barHeight}%` }}
-                    >
-                      <div
-                        className="absolute bottom-0 w-full bg-primary rounded-t-lg transition-all"
-                        style={{ height: `${Math.max(20, barHeight - 30)}%` }}
-                      />
-                    </div>
-                    <span className="text-[11px] text-text-muted font-medium">
-                      {new Date(point.date).toLocaleDateString("id-ID", {
-                        day: "2-digit",
-                        month: "short",
-                      })}
-                    </span>
-                  </div>
-                );
-              })}
+            <div className="h-64 sm:h-72 w-full relative">
+              <Bar key={`chart-${colorTheme}`} data={chartData} options={chartOptions} />
             </div>
           )}
         </div>

@@ -76,7 +76,7 @@ import { triageRoutes } from "../src/routes/triage.routes";
 import { analyticsRoutes } from "../src/routes/analytics.routes";
 import { exportRoutes } from "../src/routes/export.routes";
 
-const allowedOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3001")
+const allowedOrigins = (process.env.FRONTEND_URL ?? "https://task-amertarva.vercel.app")
   .split(",")
   .map((o) => o.trim());
 

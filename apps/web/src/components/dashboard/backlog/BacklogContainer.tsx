@@ -5,6 +5,7 @@ import { BacklogHeader } from "@/components/header/BacklogHeader";
 import { BacklogTabs } from "@/components/tabs/BacklogTabs";
 import { BacklogTable } from "@/components/tables/BacklogTable";
 import { BacklogModal } from "@/components/modals/BacklogModal";
+import { Skeleton } from "@/components/ui";
 import { useIssues } from "@/hooks/useIssues";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -217,8 +218,19 @@ export function BacklogContainer() {
 
   if (issuesLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="h-full flex flex-col p-4 sm:p-6 lg:p-8 space-y-8 w-full animate-pulse">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48 bg-muted/60" />
+            <Skeleton className="h-4 w-64 bg-muted/60" />
+          </div>
+          <Skeleton className="h-10 w-32 rounded-xl bg-muted/60" />
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-10 w-24 rounded-lg bg-muted/60" />
+          <Skeleton className="h-10 w-24 rounded-lg bg-muted/60" />
+        </div>
+        <Skeleton className="h-[400px] w-full rounded-2xl bg-muted/60" />
       </div>
     );
   }
@@ -240,7 +252,7 @@ export function BacklogContainer() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background p-6 lg:p-8 animate-fade-in overflow-y-auto relative">
+    <div className="h-full flex flex-col bg-background p-4 sm:p-6 lg:p-8 animate-fade-in overflow-y-auto overflow-x-hidden relative w-full">
       <BacklogHeader
         teamSlug={teamSlug}
         onCreateClick={setIsCreating}

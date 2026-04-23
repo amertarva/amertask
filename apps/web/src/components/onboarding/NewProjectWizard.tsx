@@ -122,7 +122,7 @@ export function NewProjectWizard() {
     formData.workArea;
 
   return (
-    <div className="w-full p-6 lg:p-8 animate-fade-in space-y-10 min-h-[calc(100vh-4rem)]">
+    <div className="w-full p-4 sm:p-6 lg:p-8 animate-fade-in space-y-8 sm:space-y-10 min-h-[calc(100vh-4rem)] overflow-x-hidden">
       {/* Header & Stepper */}
       <div className="mb-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
         <div className="flex-1">
@@ -135,7 +135,7 @@ export function NewProjectWizard() {
           </p>
         </div>
         {/* Stepper Visual */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
           <StepIndicator
             stepNum={1}
             label="Informasi Pokok"
@@ -167,7 +167,7 @@ export function NewProjectWizard() {
                 handleNext();
               }
         }
-        className="bg-card border border-border rounded-3xl p-8 lg:p-10 shadow-xl relative overflow-hidden"
+        className="bg-card border border-border rounded-2xl sm:rounded-3xl p-5 sm:p-8 lg:p-10 shadow-xl relative overflow-hidden"
       >
         {step === 1 && (
           <div className="animate-fade-in space-y-8 relative z-10">
@@ -359,18 +359,18 @@ export function NewProjectWizard() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-between mt-12 pt-8 border-t border-border">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-border gap-4">
               <button
                 type="button"
                 onClick={() => router.push("/home")}
-                className="font-bold text-text-muted hover:text-text px-4 py-2 transition-colors"
+                className="w-full sm:w-auto font-bold text-text-muted hover:text-text px-4 py-3 sm:py-2 transition-colors text-center border border-transparent hover:bg-muted rounded-xl sm:rounded-none sm:hover:bg-transparent"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={!isStep1Valid}
-                className="flex items-center gap-2 bg-primary hover:bg-primary-hover disabled:bg-muted disabled:text-text-subtle disabled:cursor-not-allowed text-primary-foreground font-bold px-8 py-4 rounded-xl transition-all shadow-md"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover disabled:bg-muted disabled:text-text-subtle disabled:cursor-not-allowed text-primary-foreground font-bold px-8 py-4 rounded-xl transition-all shadow-md"
               >
                 Konfigurasi Lanjut <ArrowRight className="w-5 h-5" />
               </button>
@@ -466,19 +466,19 @@ export function NewProjectWizard() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-between mt-12 pt-8 border-t border-border">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-border gap-4">
               <button
                 type="button"
                 onClick={handleBack}
                 disabled={isSubmitting}
-                className="font-bold text-text-muted hover:text-text px-4 py-2 transition-colors flex items-center gap-2"
+                className="w-full sm:w-auto font-bold text-text-muted hover:text-text px-4 py-3 sm:py-2 transition-colors flex items-center justify-center gap-2 border border-transparent hover:bg-muted rounded-xl sm:rounded-none sm:hover:bg-transparent"
               >
                 <ArrowLeft className="w-4 h-4" /> Kembali
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground font-bold px-8 py-4 rounded-xl transition-all shadow-md shadow-primary/30"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground font-bold px-8 py-4 rounded-xl transition-all shadow-md shadow-primary/30"
               >
                 {isSubmitting ? (
                   <>

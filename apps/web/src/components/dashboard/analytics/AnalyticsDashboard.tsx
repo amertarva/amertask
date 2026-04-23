@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   TrendingUp,
   Calendar,
@@ -11,19 +11,32 @@ import {
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useAnalytics } from "@/hooks/useAnalytics";
+import { useThemeStore } from "@/store/useThemeStore";
+import { Skeleton } from "@/components/ui";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
 
-function buildPolyline(values: number[], maxValue: number): string {
-  if (values.length === 0) return "";
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
-  const divisor = values.length === 1 ? 1 : values.length - 1;
-  return values
-    .map((value, index) => {
-      const x = (index / divisor) * 100;
-      const y = 100 - (value / Math.max(maxValue, 1)) * 90;
-      return `${x},${y}`;
-    })
-    .join(" ");
-}
 
 function formatTrendDate(value: string): string {
   const date = new Date(value);
@@ -37,37 +50,114 @@ export function AnalyticsDashboard() {
   const params = useParams();
   const teamSlug = String(params?.teamSlug || "");
   const { data, isLoading, error, refetch } = useAnalytics(teamSlug, {});
+  const { colorTheme } = useThemeStore();
+
+  const [period, setPeriod] = useState<number>(7);
 
   const recentTrend = useMemo(
-    () => (data?.completionTrend ?? []).slice(-7),
-    [data?.completionTrend],
+    () => (data?.completionTrend ?? []).slice(-period),
+    [data?.completionTrend, period]
   );
 
-  const maxTrendValue = useMemo(
-    () =>
-      Math.max(
-        ...recentTrend.map((point) => Math.max(point.completed, point.created)),
-        1,
-      ),
-    [recentTrend],
-  );
+  const isDark = colorTheme === "amerta-night";
+  
+  // Green for Selesai
+  const primaryColor = isDark ? "#4ade80" : "#16a34a";
+  const primaryBg = isDark ? "rgba(74, 222, 128, 0.1)" : "rgba(22, 163, 74, 0.1)";
+  
+  // Blue for Dibuat
+  const secondaryColor = isDark ? "#60a5fa" : "#2563eb";
+  const secondaryBg = isDark ? "rgba(96, 165, 250, 0.1)" : "rgba(37, 99, 235, 0.1)";
 
-  const completedLine = useMemo(
-    () =>
-      buildPolyline(
-        recentTrend.map((point) => point.completed),
-        maxTrendValue,
-      ),
-    [maxTrendValue, recentTrend],
-  );
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)";
+  const textColor = isDark ? "#a1a1aa" : "#71717a";
+  const tooltipBg = isDark ? "#18181b" : "#ffffff";
+  const tooltipText = isDark ? "#ffffff" : "#000000";
+  const tooltipBorder = isDark ? "#27272a" : "#e4e4e7";
 
-  const createdLine = useMemo(
-    () =>
-      buildPolyline(
-        recentTrend.map((point) => point.created),
-        maxTrendValue,
-      ),
-    [maxTrendValue, recentTrend],
+  const chartData = useMemo(() => {
+    return {
+      labels: recentTrend.map((point) => formatTrendDate(point.date)),
+      datasets: [
+        {
+          label: "Dibuat",
+          data: recentTrend.map((point) => point.created),
+          borderColor: secondaryColor,
+          backgroundColor: secondaryBg,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+        },
+        {
+          label: "Selesai",
+          data: recentTrend.map((point) => point.completed),
+          borderColor: primaryColor,
+          backgroundColor: primaryBg,
+          tension: 0.4,
+          borderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        },
+      ],
+    };
+  }, [recentTrend, primaryColor, secondaryColor, primaryBg, secondaryBg]);
+
+  const chartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          mode: "index" as const,
+          intersect: false,
+          backgroundColor: tooltipBg,
+          titleColor: tooltipText,
+          bodyColor: textColor,
+          borderColor: tooltipBorder,
+          borderWidth: 1,
+          padding: 10,
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: gridColor,
+          },
+          ticks: {
+            color: textColor,
+            precision: 0,
+          },
+          border: {
+            display: false,
+          },
+        },
+        x: {
+          grid: {
+            display: false,
+          },
+          ticks: {
+            color: textColor,
+            font: {
+              size: 11,
+            },
+          },
+          border: {
+            display: false,
+          },
+        },
+      },
+      interaction: {
+        mode: "nearest" as const,
+        axis: "x" as const,
+        intersect: false,
+      },
+    }),
+    [gridColor, textColor, tooltipBg, tooltipText, tooltipBorder]
   );
 
   const summary = data?.summary ?? {
@@ -95,10 +185,30 @@ export function AnalyticsDashboard() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center p-6">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-          <p className="text-text-muted">Memuat analytics...</p>
+      <div className="h-full flex flex-col p-4 sm:p-6 lg:p-8 space-y-8 w-full animate-pulse">
+        {/* Header Skeleton */}
+        <div className="mb-6 sm:mb-8 border-b border-border pb-4 sm:pb-6">
+          <Skeleton className="h-8 w-64 bg-muted/60 mb-3" />
+          <Skeleton className="h-4 w-96 bg-muted/60" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+          {/* Chart Skeleton */}
+          <Skeleton className="h-[380px] rounded-2xl bg-muted/60" />
+          
+          <div className="space-y-6 sm:space-y-8">
+            {/* Summary Cards Skeleton */}
+            <div className="grid grid-cols-2 gap-4">
+              <Skeleton className="h-[120px] rounded-2xl bg-muted/60" />
+              <Skeleton className="h-[120px] rounded-2xl bg-muted/60" />
+            </div>
+            
+            {/* Metric Cards Skeleton */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Skeleton className="h-[160px] rounded-2xl bg-muted/60" />
+              <Skeleton className="h-[160px] rounded-2xl bg-muted/60" />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -122,10 +232,10 @@ export function AnalyticsDashboard() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background p-6 lg:p-8 animate-fade-in overflow-y-auto">
-      <div className="mb-8 border-b border-border pb-6">
-        <h1 className="text-3xl font-extrabold text-text tracking-tight flex items-center gap-3">
-          <BarChart3 className="w-7 h-7 text-primary" />
+    <div className="h-full flex flex-col bg-background p-4 sm:p-6 lg:p-8 animate-fade-in overflow-y-auto overflow-x-hidden w-full">
+      <div className="mb-6 sm:mb-8 border-b border-border pb-4 sm:pb-6">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-text tracking-tight flex items-center gap-3 break-words">
+          <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-primary shrink-0" />
           Analytics Tim
         </h1>
         <p className="text-text-muted mt-2">
@@ -133,14 +243,21 @@ export function AnalyticsDashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Completion Trend */}
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <div className="flex justify-between items-center mb-6">
+        <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
             <h3 className="font-bold text-text text-lg">Tren Penyelesaian</h3>
-            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-muted text-text-muted">
-              {recentTrend.length} hari terakhir
-            </span>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(Number(e.target.value))}
+              className="bg-muted/50 text-xs sm:text-sm font-semibold px-3 py-1.5 rounded-lg border border-border text-text-muted hover:text-text cursor-pointer outline-none focus:ring-1 focus:ring-primary shadow-sm transition-colors"
+            >
+              <option value={1}>1 hari terakhir</option>
+              <option value={7}>1 minggu terakhir</option>
+              <option value={30}>1 bulan terakhir</option>
+              <option value={365}>1 tahun terakhir</option>
+            </select>
           </div>
 
           {recentTrend.length === 0 ? (
@@ -149,58 +266,18 @@ export function AnalyticsDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="relative h-64 border-l border-b border-border pl-4 pb-4">
-                <svg
-                  className="w-full h-full"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  <polyline
-                    points={createdLine}
-                    fill="none"
-                    stroke="currentColor"
-                    className="text-muted-foreground stroke-[1.5]"
-                  />
-                  <polyline
-                    points={completedLine}
-                    fill="none"
-                    stroke="currentColor"
-                    className="text-primary stroke-2"
-                  />
-                  {recentTrend.map((point, index) => {
-                    const divisor =
-                      recentTrend.length === 1 ? 1 : recentTrend.length - 1;
-                    const x = (index / divisor) * 100;
-                    const y = 100 - (point.completed / maxTrendValue) * 90;
-                    return (
-                      <circle
-                        key={point.date}
-                        cx={x}
-                        cy={y}
-                        r="1.8"
-                        fill="currentColor"
-                        className="text-primary"
-                      />
-                    );
-                  })}
-                </svg>
-              </div>
-              <div className="grid grid-cols-7 gap-2 text-center text-xs text-text-muted">
-                {recentTrend.map((point) => (
-                  <span key={`label-${point.date}`}>
-                    {formatTrendDate(point.date)}
-                  </span>
-                ))}
+              <div className="relative h-64 sm:h-72 w-full">
+                <Line key={`chart-${colorTheme}`} data={chartData} options={chartOptions} />
               </div>
             </div>
           )}
 
           <div className="flex justify-center gap-6 mt-6 text-sm font-medium text-text-muted">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-primary" /> Selesai
+              <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: primaryColor }} /> Selesai
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-muted-foreground" />
+              <span className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: secondaryColor }} />
               Dibuat
             </div>
           </div>
@@ -209,7 +286,7 @@ export function AnalyticsDashboard() {
         {/* Breakdown Panel */}
         <div className="flex flex-col gap-6">
           {/* Metric Cards */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-card border border-border rounded-xl p-5 shadow-sm">
               <div className="flex items-center gap-2 text-text-muted font-bold text-xs uppercase tracking-widest mb-3">
                 <TrendingUp className="w-4 h-4" /> Total Isu
@@ -253,7 +330,7 @@ export function AnalyticsDashboard() {
           </div>
 
           {/* Health Status */}
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex-1">
+          <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-sm flex-1">
             <h3 className="font-bold text-text text-lg mb-6 flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-secondary" /> Peringatan
               Kesehatan

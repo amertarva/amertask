@@ -41,7 +41,7 @@ JWT_SECRET=your-secret-min-32-chars
 JWT_ACCESS_EXPIRES=15m
 JWT_REFRESH_EXPIRES=7d
 
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=https://task-amertarva.vercel.app
 ```
 
 ### 3. Database Setup
@@ -54,11 +54,11 @@ Jalankan SQL di `database.sql` pada Supabase SQL Editor untuk membuat tabel dan 
 bun run dev
 ```
 
-Server akan berjalan di `http://localhost:3001`
+Server akan berjalan di `https://api-amertask.vercel.app`
 
 ## API Documentation
 
-Swagger documentation tersedia di: `http://localhost:3001/docs`
+Swagger documentation tersedia di: `https://api-amertask.vercel.app/docs`
 
 ## Project Structure
 
@@ -141,7 +141,7 @@ bun run start
 
 ## Notes
 
-- Backend berjalan di port **3001** (frontend di 3000)
+- Backend berjalan di `https://api-amertask.vercel.app` (frontend di `https://task-amertarva.vercel.app`)
 - Semua endpoint (kecuali `/auth/*`) memerlukan JWT token
 - Refresh token dirotasi setiap penggunaan untuk keamanan
 - Service role key digunakan untuk bypass RLS di Supabase

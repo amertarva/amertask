@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTriage } from "@/hooks/useTriage";
+import { Skeleton } from "@/components/ui";
 
 export function TriageView() {
   const params = useParams();
@@ -82,10 +83,20 @@ export function TriageView() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center p-6">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-          <p className="text-text-muted">Memuat antrean triage...</p>
+      <div className="h-full flex flex-col lg:flex-row gap-6 p-4 sm:p-6 lg:p-8 w-full animate-pulse">
+        {/* Sidebar Skeleton */}
+        <div className="w-full lg:w-80 shrink-0 space-y-4">
+          <Skeleton className="h-10 w-full rounded-2xl bg-muted/60" />
+          <div className="flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-visible">
+            <Skeleton className="h-20 min-w-[240px] lg:min-w-0 lg:w-full rounded-2xl bg-muted/60 shrink-0" />
+            <Skeleton className="h-20 min-w-[240px] lg:min-w-0 lg:w-full rounded-2xl bg-muted/60 shrink-0" />
+            <Skeleton className="h-20 min-w-[240px] lg:min-w-0 lg:w-full rounded-2xl bg-muted/60 shrink-0 hidden lg:block" />
+          </div>
+        </div>
+        
+        {/* Content Skeleton */}
+        <div className="flex-1 min-w-0 space-y-6 hidden lg:block">
+          <Skeleton className="h-[400px] w-full rounded-3xl bg-muted/60" />
         </div>
       </div>
     );
@@ -109,19 +120,22 @@ export function TriageView() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background p-6 lg:p-8 animate-fade-in overflow-y-auto">
+    <div className="h-full flex flex-col bg-background p-4 sm:p-6 lg:p-8 animate-fade-in overflow-y-auto overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between pb-8 pt-0 border-b border-border mb-8">
-        <div>
-          <h1 className="text-3xl font-extrabold text-text flex items-center gap-3 tracking-tight">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 sm:pb-8 pt-0 border-b border-border mb-6 sm:mb-8">
+        <div className="w-full">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-text flex items-center justify-between sm:justify-start gap-3 tracking-tight">
             Bug Triage
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-muted text-text-muted sm:hidden">
+              {total} Isu
+            </span>
           </h1>
           <p className="text-sm font-medium text-text-muted mt-2">
             Kelola dan sortir tiket masuk acak (*inbox*) dari Slack, email, dan
             integrasi eksternal lainnya.
           </p>
         </div>
-        <span className="text-xs font-bold px-3 py-1 rounded-full bg-muted text-text-muted">
+        <span className="hidden sm:inline-block text-xs font-bold px-3 py-1 rounded-full bg-muted text-text-muted">
           {total} Isu
         </span>
       </div>
@@ -144,8 +158,10 @@ export function TriageView() {
           </p>
         </div>
       ) : (
-        <div className="rounded-3xl border border-border bg-card shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+        <>
+          {/* Desktop Table View */}
+          <div className="hidden md:block rounded-3xl border border-border bg-card shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="bg-muted text-text-muted border-b border-border">
                 <tr>
@@ -206,6 +222,57 @@ export function TriageView() {
             </table>
           </div>
         </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden flex flex-col gap-4 pb-8">
+          {issues.map((issue) => (
+            <div key={issue.id} className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+              <div>
+                <div className="flex justify-between items-start mb-2">
+                  <p className="font-bold text-text text-base leading-snug">{issue.title}</p>
+                </div>
+                <p className="text-[11px] font-bold tracking-wider text-text-muted bg-muted/50 inline-block px-2.5 py-1 rounded-md uppercase">
+                  {teamSlug}-{issue.number}
+                </p>
+              </div>
+              
+              <div className="bg-muted/20 p-3 rounded-xl border border-border/50">
+                <p className="text-[11px] font-bold text-text-muted mb-1 uppercase tracking-wider">Alasan / Sumber</p>
+                <p className="text-sm font-medium text-text">
+                  {issue.triageReason?.trim() || issue.reason?.trim() || issue.source || "-"}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  onClick={() => void handleAccept(issue.id)}
+                  disabled={actionIssueId === issue.id}
+                  className="flex-1 justify-center inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-status-done hover:bg-status-done/90 text-primary-foreground text-[13px] font-bold transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Terima
+                </button>
+                <button
+                  onClick={() => void handleDecline(issue.id)}
+                  disabled={actionIssueId === issue.id}
+                  className="flex-1 justify-center inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-priority-urgent hover:bg-priority-urgent/90 text-primary-foreground text-[13px] font-bold transition-all shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Tolak
+                </button>
+                <button
+                  onClick={() => void handleDelete(issue.id)}
+                  disabled={actionIssueId === issue.id}
+                  className="w-full justify-center inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/20 text-[13px] font-bold transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 mt-1"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Hapus Permanen
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
       )}
     </div>
   );

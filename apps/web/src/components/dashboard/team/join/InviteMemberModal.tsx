@@ -129,7 +129,7 @@ export function InviteMemberModal({
             </div>
             <div>
               <h3 className="font-extrabold text-2xl text-text">
-                Undang Anggota Baru
+                Tambah Anggota{" "}
               </h3>
               <p className="text-text-muted text-sm mt-1">
                 Buat link undangan untuk tim #{teamSlug.toUpperCase()}.

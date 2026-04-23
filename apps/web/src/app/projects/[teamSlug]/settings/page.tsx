@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useState } from "react";
-import { Loader2, Settings } from "lucide-react";
+import { Loader2, Settings, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ProjectAccessSection,
@@ -141,11 +141,11 @@ export default function ProjectSettingsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background animate-fade-in overflow-y-auto w-full">
-      <div className="sticky top-0 z-50 bg-[hsl(var(--background))] px-6 lg:px-8 py-6 flex flex-col justify-between items-start gap-4 border-b border-border shadow-sm">
-        <div>
-          <h1 className="text-3xl font-extrabold text-text tracking-tight flex items-center gap-3">
-            <Settings className="w-8 h-8 text-primary" />
+    <div className="h-full flex flex-col bg-background animate-fade-in overflow-y-auto overflow-x-hidden w-full">
+      <div className="sticky top-0 z-50 bg-[hsl(var(--background))] px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col justify-between items-start gap-4 border-b border-border shadow-sm">
+        <div className="w-full">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-text tracking-tight flex items-center gap-3 break-words">
+            <Settings className="w-6 h-6 sm:w-8 sm:h-8 text-primary shrink-0" />
             Pengaturan Proyek
           </h1>
           <p className="text-text-muted mt-2 font-medium">
@@ -155,7 +155,7 @@ export default function ProjectSettingsPage() {
         </div>
       </div>
 
-      <div className="p-6 lg:p-8 flex flex-col lg:flex-row gap-8 lg:gap-12">
+      <div className="p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6 sm:gap-8 lg:gap-12">
         <ProjectSettingsSidebar
           activeTab={activeTab}
           onTabChange={(tab) => setActiveTab(tab)}
@@ -193,6 +193,26 @@ export default function ProjectSettingsPage() {
               />
             </div>
           )}
+
+          {/* Mobile-only Delete Button */}
+          <div className="lg:hidden mt-8 pt-8 border-t border-border">
+            <h3 className="text-xl font-extrabold text-priority-urgent mb-4">Zona Berbahaya</h3>
+            <button
+              onClick={() => void handleDeleteProject()}
+              disabled={isDeleting}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all text-left bg-priority-urgent/10 border border-priority-urgent/20 text-priority-urgent hover:bg-priority-urgent/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <div className="p-3 rounded-xl bg-priority-urgent text-white">
+                {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+              </div>
+              <div>
+                <h4 className="font-extrabold text-base">Hapus Proyek</h4>
+                <p className="text-xs font-semibold mt-1 opacity-80">
+                  {isDeleting ? "Sedang menghapus..." : "Aksi ini tidak bisa dibatalkan"}
+                </p>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
     </div>

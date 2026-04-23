@@ -4,6 +4,7 @@ import { useEffect, Suspense } from "react";
 import type { ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { AppLoader } from "@/components/ui/AppLoader";
 
 interface AuthGateProps {
   children: ReactNode;
@@ -48,14 +49,7 @@ function AuthGateContent({
       return <>{loadingFallback}</>;
     }
 
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-text-muted">Memverifikasi sesi...</p>
-        </div>
-      </div>
-    );
+    return <AppLoader text="Memverifikasi sesi..." />;
   }
 
   if (status === "unauthenticated") {
@@ -68,14 +62,7 @@ function AuthGateContent({
 export function AuthGate(props: AuthGateProps) {
   return (
     <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-text-muted">Memuat...</p>
-          </div>
-        </div>
-      }
+      fallback={<AppLoader text="Memuat..." />}
     >
       <AuthGateContent {...props} />
     </Suspense>

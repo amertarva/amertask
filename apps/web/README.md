@@ -18,7 +18,7 @@ Aplikasi manajemen tugas berbahasa Indonesia yang terinspirasi dari Tegon/Jira/L
 ### Prerequisites
 
 - Node.js 20+ atau Bun
-- Backend API (Elysia.js) berjalan di `http://localhost:3001`
+- Backend API (Elysia.js) berjalan di `https://api-amertask.vercel.app`
 
 ### Installation
 
@@ -39,7 +39,7 @@ npm run dev
 bun dev
 ```
 
-Buka [http://localhost:3000](http://localhost:3000) di browser.
+Buka [https://task-amertarva.vercel.app](https://task-amertarva.vercel.app) di browser.
 
 ## 📁 Struktur Proyek
 

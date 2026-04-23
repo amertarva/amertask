@@ -9,6 +9,7 @@ import { useIssues } from "@/hooks/useIssues";
 import { useTeamMembers } from "@/hooks/useTeams";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui";
 
 export function PlanningContainer() {
   const params = useParams();
@@ -199,8 +200,19 @@ export function PlanningContainer() {
 
   if (issuesLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="h-full flex flex-col w-full animate-pulse">
+        {/* Header Skeleton */}
+        <div className="sticky top-0 z-50 bg-[hsl(var(--background))] px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex justify-between items-center border-b border-border shadow-sm">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48 bg-muted/60" />
+            <Skeleton className="h-4 w-64 bg-muted/60" />
+          </div>
+          <Skeleton className="h-10 w-32 rounded-xl bg-muted/60" />
+        </div>
+        <div className="p-4 sm:p-6 lg:p-8 flex flex-col space-y-6">
+          <Skeleton className="h-24 w-full rounded-2xl bg-muted/60" />
+          <Skeleton className="h-[400px] w-full rounded-2xl bg-muted/60" />
+        </div>
       </div>
     );
   }
@@ -222,9 +234,9 @@ export function PlanningContainer() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background animate-fade-in overflow-y-auto w-full">
+    <div className="h-full flex flex-col bg-background animate-fade-in overflow-y-auto overflow-x-hidden w-full">
       <PlanningHeader onCreateClick={handleCreateNew} teamSlug={teamSlug} />
-      <div className="p-6 lg:p-8 flex flex-col">
+      <div className="p-4 sm:p-6 lg:p-8 flex flex-col">
         <PlanningGoal
           totalItems={plannings.length}
           todoItems={todoItems}

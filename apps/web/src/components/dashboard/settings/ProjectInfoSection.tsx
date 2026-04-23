@@ -10,17 +10,17 @@ type ProjectInfoSectionProps = {
 
 export function ProjectInfoSection({ form, setForm }: ProjectInfoSectionProps) {
   return (
-    <div className="bg-card border border-border rounded-3xl p-8 shadow-sm relative overflow-hidden">
+    <div className="bg-card border border-border rounded-3xl p-6 sm:p-8 shadow-sm relative overflow-hidden">
       <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
-      <h2 className="text-2xl font-extrabold text-text mb-2 relative z-10">
+      <h2 className="text-xl sm:text-2xl font-extrabold text-text mb-2 relative z-10">
         Informasi Dasar Proyek
       </h2>
       <p className="text-sm font-medium text-text-muted relative z-10">
         Kelola metadata utama proyek yang digunakan di seluruh dashboard.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8 relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mt-6 sm:mt-8 relative z-10">
         <label className="space-y-2 md:col-span-2">
           <span className="text-sm font-bold text-text ml-1">Nama Proyek</span>
           <input

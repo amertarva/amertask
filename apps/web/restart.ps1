@@ -29,7 +29,7 @@ Start-Sleep -Seconds 1
 Write-Host "🚀 Starting dev server..." -ForegroundColor Green
 Write-Host ""
 Write-Host "After server starts:" -ForegroundColor Yellow
-Write-Host "1. Open http://localhost:3001/auth/register" -ForegroundColor White
+Write-Host "1. Open https://task-amertarva.vercel.app/auth/register" -ForegroundColor White
 Write-Host "2. Press Ctrl+Shift+R to hard refresh browser" -ForegroundColor White
 Write-Host "3. Check console for: 🔧 BASE_URL configured: /api" -ForegroundColor White
 Write-Host ""

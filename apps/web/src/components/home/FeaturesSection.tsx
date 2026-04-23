@@ -22,7 +22,8 @@ export default function FeaturesSection() {
             <h3 className="text-2xl font-bold mb-3">Manajemen Task Visual</h3>
             <p className="text-text-muted leading-relaxed max-w-md">
               Board interaktif yang memungkinkan Anda melacak setiap tiket
-              dengan detail yang presisi. Integrasikan dengan sistem custom Anda.
+              dengan detail yang presisi. Integrasikan dengan sistem custom
+              Anda.
             </p>
           </div>
         </div>
@@ -60,8 +61,8 @@ export default function FeaturesSection() {
               </div>
               <h3 className="text-2xl font-bold mb-3">Perencanaan Sprint</h3>
               <p className="text-text-muted">
-                Tentukan kapasitas tim, bagi beban kerja, dan ukur velocity dengan
-                grafik burndown otomatis yang akurat.
+                Tentukan kapasitas tim, bagi beban kerja, dan ukur velocity
+                dengan grafik burndown otomatis yang akurat.
               </p>
             </div>
             <div className="w-full md:w-1/2 h-44 bg-background/60 rounded-xl border border-border p-5 flex flex-col justify-end relative">

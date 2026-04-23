@@ -80,7 +80,7 @@ Client (Browser)
     ↓
 Next.js API Route (/api/*)
     ↓ (validate, transform)
-Backend ElysiaJS (localhost:3000)
+Backend ElysiaJS (https://api-amertask.vercel.app)
     ↓ (process)
 Next.js API Route
     ↓ (transform response)
@@ -92,7 +92,7 @@ Client (Browser)
 1. **Client** calls `POST /api/auth/login` dengan `{ email, password }`
 2. **Next.js API Route** (`apps/web/src/app/api/auth/login/route.ts`):
    - Validate input
-   - Forward ke `http://localhost:3000/auth/login`
+   - Forward ke `https://api-amertask.vercel.app/auth/login`
 3. **Backend ElysiaJS** process login dan return `{ user, accessToken, refreshToken }`
 4. **Next.js API Route** forward response ke client
 5. **Client** simpan tokens di localStorage
@@ -192,7 +192,7 @@ export async function GET(
 NEXT_PUBLIC_API_URL=
 
 # Backend URL for server-side proxy
-BACKEND_URL=http://localhost:3000
+BACKEND_URL=https://api-amertask.vercel.app
 ```
 
 ### Penjelasan:
@@ -201,7 +201,7 @@ BACKEND_URL=http://localhost:3000
   - Kosong = gunakan `/api` (Next.js API routes)
   - Isi dengan URL = direct connection ke backend (bypass proxy)
 - **BACKEND_URL**: URL backend ElysiaJS (hanya digunakan di server-side)
-  - Default: `http://localhost:3000`
+  - Default: `https://api-amertask.vercel.app`
   - Production: ganti dengan production backend URL
 
 ## 🚀 Development
@@ -224,12 +224,12 @@ bun run dev  # Port 3001
 
 ```bash
 # Login
-curl -X POST http://localhost:3001/api/auth/login \
+curl -X POST https://task-amertarva.vercel.app/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"password123"}'
 
 # Get user profile (with token)
-curl http://localhost:3001/api/users/me \
+curl https://task-amertarva.vercel.app/api/users/me \
   -H "Authorization: Bearer <your_token>"
 ```
 

@@ -8,6 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useTeamMembers, useTeams } from "@/hooks/useTeams";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { ApiError, teamsApi } from "@/lib/core";
+import { Skeleton } from "@/components/ui";
 
 export function TeamDirectory() {
   const router = useRouter();
@@ -97,10 +98,21 @@ export function TeamDirectory() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center p-6">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-          <p className="text-text-muted">Memuat anggota tim...</p>
+      <div className="h-full flex flex-col p-4 sm:p-6 lg:p-8 space-y-8 w-full animate-pulse">
+        {/* Header Skeleton */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6 sm:mb-8 border-b border-border pb-4 sm:pb-6">
+          <div className="space-y-3 w-full">
+            <Skeleton className="h-8 w-48 bg-muted/60" />
+            <Skeleton className="h-4 w-64 bg-muted/60" />
+          </div>
+          <Skeleton className="h-10 w-full sm:w-32 rounded-xl bg-muted/60" />
+        </div>
+
+        {/* Directory List Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-2xl bg-muted/60" />
+          ))}
         </div>
       </div>
     );
@@ -118,10 +130,10 @@ export function TeamDirectory() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background p-6 lg:p-8 animate-fade-in overflow-y-auto w-full">
-      <div className="flex justify-between items-center mb-8 border-b border-border pb-6">
-        <div>
-          <h1 className="text-3xl font-extrabold text-text tracking-tight">
+    <div className="h-full flex flex-col bg-background p-4 sm:p-6 lg:p-8 animate-fade-in overflow-y-auto w-full overflow-x-hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6 sm:mb-8 border-b border-border pb-4 sm:pb-6">
+        <div className="w-full">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-text tracking-tight break-words">
             Anggota Tim
           </h1>
           <p className="text-text-muted mt-2">
@@ -131,9 +143,9 @@ export function TeamDirectory() {
         {canInviteMembers ? (
           <button
             onClick={() => setIsInviteModalOpen(true)}
-            className="flex items-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-5 py-2.5 rounded-xl transition-all shadow-sm"
+            className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground font-semibold px-5 py-3 sm:py-2.5 rounded-xl transition-all shadow-sm w-full sm:w-auto"
           >
-            <UserPlus className="w-5 h-5" /> Undang Anggota Baru
+            <UserPlus className="w-5 h-5 shrink-0" /> Tambah Anggota
           </button>
         ) : null}
       </div>
@@ -163,7 +175,7 @@ export function TeamDirectory() {
           ) : null}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {members.map((member) => {
             const memberRole = String(member.role || "member").toLowerCase();
             const isSelf = currentUserId !== "" && member.id === currentUserId;
