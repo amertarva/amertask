@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
     });
 
-    const data = await safeJson(response);
+    const data = (await safeJson(response)) as any;
 
     if (!response.ok) {
       return NextResponse.json(data, { status: response.status });
