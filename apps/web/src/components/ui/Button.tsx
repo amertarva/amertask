@@ -23,7 +23,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       primary:
         "bg-primary text-primary-foreground hover:bg-primary-hover active:scale-95",
       secondary:
-        "bg-secondary text-secondary-foreground hover:bg-background-tertiary",
+        "bg-secondary text-secondary-foreground hover:bg-secondary-hover active:scale-95",
       ghost: "hover:bg-muted text-foreground",
       destructive: "bg-priority-urgent text-primary-foreground hover:bg-priority-urgent/90",
     };

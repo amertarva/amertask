@@ -45,7 +45,7 @@ export default function TaskCard({
           <div
             className={`w-2.5 h-2.5 rounded-full shadow-sm ${priority === "high" ? "bg-[#FF5F56]" : priority === "medium" ? "bg-[#FFBD2E]" : "bg-[#27C93F]"}`}
           />
-          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-[10px] font-bold text-primary-foreground shadow-sm ring-2 ring-background">
+          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-[10px] font-bold text-primary-foreground shadow-sm ring-2 ring-background">
             G
           </div>
         </div>

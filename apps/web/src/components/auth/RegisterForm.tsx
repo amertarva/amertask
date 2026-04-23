@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import {
   Mail,
   Lock,
@@ -13,6 +14,8 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 
 type SnackbarState = {
   message: string;
@@ -130,101 +133,79 @@ export function RegisterForm() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0">
         <div
-          className="absolute -left-16 top-12 h-64 w-64 rounded-full bg-primary/20 blur-3xl"
+          className="absolute -left-16 top-12 h-[30rem] w-[30rem] rounded-full bg-primary/10 blur-3xl"
           aria-hidden
         />
         <div
-          className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-secondary/20 blur-3xl"
+          className="absolute bottom-0 right-0 h-[32rem] w-[32rem] rounded-full bg-secondary/10 blur-3xl"
           aria-hidden
         />
       </div>
 
-      <div className="max-w-md w-full backdrop-blur-sm rounded-2xl p-8 transform transition-all duration-300">
+      <div className="relative max-w-md w-full bg-card/60 backdrop-blur-xl rounded-2xl p-8 transform transition-all duration-300">
         <div className="text-center mb-8">
-          <div className="relative mb-6">
-            <div className="w-30 h-30 mx-auto rounded-full bg-primary flex items-center justify-center border-4 border-background text-primary-foreground font-black text-5xl">
-              A
-            </div>
+          <div className="flex justify-center mb-6">
+            <Image
+              src="/company-logos/amertask.svg"
+              alt="Amertask Logo"
+              width={64}
+              height={64}
+              className="h-16 w-auto drop-shadow-sm"
+              priority
+            />
           </div>
-          <h1 className="text-3xl font-bold bg-linear-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2 text-foreground">
             Mulai Bersama Amertask
           </h1>
-          <p className="text-foreground text-sm">
+          <p className="text-foreground-muted text-sm">
             Daftar untuk infrastruktur yang cemerlang.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="relative">
-            <label
-              htmlFor="name"
-              className="block text-sm font-semibold text-foreground mb-2"
-            >
-              Nama Sesuai Pengenal
-            </label>
-            <div className="relative">
-              <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-foreground/50 w-5 h-5" />
-              <input
-                type="text"
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                disabled={isSubmitting}
-                className="pl-12 pr-4 py-3 w-full border-2 border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-muted/30 hover:bg-card disabled:opacity-60 disabled:cursor-not-allowed text-text"
-                placeholder="e.g. John Doe"
-                autoComplete="name"
-              />
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <Input
+            id="name"
+            type="text"
+            label="Nama Sesuai Pengenal"
+            placeholder="e.g. John Doe"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            disabled={isSubmitting}
+            leftIcon={<UserIcon className="w-5 h-5" />}
+            autoComplete="name"
+            className="bg-background/80 border-border focus:border-primary/50"
+          />
 
-          <div className="relative">
-            <label
-              htmlFor="email"
-              className="block text-sm font-semibold text-foreground mb-2"
-            >
-              Email Kerja
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-foreground/50 w-5 h-5" />
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(sanitizeInput(e.target.value))}
-                required
-                disabled={isSubmitting}
-                className="pl-12 pr-4 py-3 w-full border-2 border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-muted/30 hover:bg-card disabled:opacity-60 disabled:cursor-not-allowed text-text"
-                placeholder="Masukkan email Anda"
-                autoComplete="email"
-              />
-            </div>
-          </div>
+          <Input
+            id="email"
+            type="email"
+            label="Email Kerja"
+            placeholder="Masukkan email Anda"
+            value={email}
+            onChange={(e) => setEmail(sanitizeInput(e.target.value))}
+            required
+            disabled={isSubmitting}
+            leftIcon={<Mail className="w-5 h-5" />}
+            autoComplete="email"
+            className="bg-background/80 border-border focus:border-primary/50"
+          />
 
-          <div className="relative">
-            <label
-              htmlFor="password"
-              className="block text-sm font-semibold text-foreground mb-2"
-            >
-              Kata Sandi
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-foreground/50 w-5 h-5" />
-              <input
-                type={showPassword ? "text" : "password"}
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(sanitizeInput(e.target.value))}
-                required
-                disabled={isSubmitting}
-                className="pl-12 pr-12 py-3 w-full border-2 border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 bg-muted/30 hover:bg-card disabled:opacity-60 disabled:cursor-not-allowed text-text"
-                placeholder="Buat kata sandi aman"
-                autoComplete="current-password"
-              />
+          <Input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            label="Kata Sandi"
+            placeholder="Buat kata sandi aman"
+            value={password}
+            onChange={(e) => setPassword(sanitizeInput(e.target.value))}
+            required
+            disabled={isSubmitting}
+            leftIcon={<Lock className="w-5 h-5" />}
+            rightIcon={
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-foreground/50 hover:text-foreground transition-colors duration-200"
+                className="hover:text-foreground transition-colors duration-200 flex items-center justify-center p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50"
                 tabIndex={-1}
                 aria-label={
                   showPassword
@@ -233,34 +214,33 @@ export function RegisterForm() {
                 }
               >
                 {showPassword ? (
-                  <EyeOff className="w-5 h-5" />
+                  <EyeOff className="w-4 h-4" />
                 ) : (
-                  <Eye className="w-5 h-5" />
+                  <Eye className="w-4 h-4" />
                 )}
               </button>
-            </div>
-          </div>
+            }
+            autoComplete="current-password"
+            className="bg-background/80 border-border focus:border-primary/50"
+          />
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-linear-to-r from-primary to-accent text-primary-foreground py-3 px-4 rounded-xl font-semibold transform hover:-translate-y-0.5 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Memproses...</span>
-              </>
-            ) : (
-              "Konfirmasi Pendaftaran"
-            )}
-          </button>
+          <div className="pt-2">
+            <Button
+              type="submit"
+              variant="secondary"
+              isLoading={isSubmitting}
+              className="w-full h-12 text-base rounded-xl font-bold shadow-lg shadow-secondary/20 transition-all duration-300 transform active:scale-[0.98]"
+            >
+              Konfirmasi Pendaftaran
+            </Button>
+          </div>
         </form>
-        <div className="mt-8 text-center text-sm text-foreground">
+
+        <div className="mt-8 text-center text-sm text-foreground-muted">
           Telah punya akun?{" "}
           <a
             href={loginHref}
-            className="font-bold text-primary hover:underline"
+            className="font-semibold text-primary hover:text-primary-hover transition-colors duration-200"
           >
             Masuk sekarang
           </a>
@@ -278,7 +258,7 @@ export function RegisterForm() {
             : snackbar?.type === "error"
               ? "bg-priority-urgent text-primary-foreground border-priority-urgent"
               : "bg-other text-primary-foreground border-other"
-        } px-6 py-4 rounded-2xl shadow-2xl border-2 pointer-events-none max-w-sm`}
+        } px-6 py-4 rounded-xl shadow-2xl border pointer-events-none max-w-sm`}
         aria-live="assertive"
         role="alert"
       >

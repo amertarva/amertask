@@ -106,7 +106,7 @@ function BacklogRow({ id, title, tag, priority }: any) {
         >
           {tag}
         </span>
-        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-border">
+        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-primary-hover flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-1 ring-border">
           U
         </div>
       </div>

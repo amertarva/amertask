@@ -56,7 +56,7 @@ export default function TeamPreview() {
           role="QA Engineer"
           status="online"
           initials="G"
-          color="from-violet-500 to-purple-600"
+          color="from-primary to-primary-hover"
           tasks={1}
         />
       </div>
