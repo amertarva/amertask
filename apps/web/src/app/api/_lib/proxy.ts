@@ -44,6 +44,17 @@ if (!BACKEND_URL) {
   console.error(
     "❌ BACKEND_URL belum valid. Set BACKEND_URL ke URL backend absolut (mis. https://api-amertask.vercel.app) agar route /api/* dapat mem-forward request.",
   );
+} else {
+  try {
+    const url = new URL(BACKEND_URL);
+    console.log(`🔧 Proxy target initialized: ${url.protocol}//${url.hostname}`);
+    
+    if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && process.env.NODE_ENV === "production") {
+      console.error("🚨 ERROR: BACKEND_URL mengarah ke localhost di environment PRODUCTION. Ini akan menyebabkan timeout (502).");
+    }
+  } catch {
+    console.error(`❌ BACKEND_URL '${BACKEND_URL}' bukan URL yang valid.`);
+  }
 }
 
 export { BACKEND_URL };
@@ -52,14 +63,26 @@ export function guardBackendUrl(): { error: string; message: string } | null {
   if (!BACKEND_URL) {
     return {
       error: "CONFIG_ERROR",
-      message:
-        "Backend URL belum dikonfigurasi. Hubungi administrator untuk set BACKEND_URL di environment variables.",
+      message: "Backend URL belum dikonfigurasi di Vercel Settings. Hubungi administrator untuk set BACKEND_URL.",
     };
   }
+
+  try {
+    const url = new URL(BACKEND_URL);
+    if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && process.env.NODE_ENV === "production") {
+      return {
+        error: "CONFIG_ERROR",
+        message: "Konfigurasi error: BACKEND_URL masih menggunakan localhost di production. Silakan ubah di Vercel Settings.",
+      };
+    }
+  } catch {
+    // Ignore
+  }
+
   return null;
 }
 
-const FETCH_TIMEOUT_MS = 15_000;
+const FETCH_TIMEOUT_MS = 12_000;
 
 export async function fetchBackend(
   path: string,
@@ -71,6 +94,7 @@ export async function fetchBackend(
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
+    console.log(`📡 Forwarding request to: ${url}`);
     const response = await fetch(url, {
       ...init,
       signal: controller.signal,
@@ -78,10 +102,11 @@ export async function fetchBackend(
     return response;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(
-        `Backend timeout: request ke ${path} melebihi ${FETCH_TIMEOUT_MS / 1000} detik`,
-      );
+      const msg = `Backend timeout (>${FETCH_TIMEOUT_MS}ms) saat mengakses ${path}. Pastikan backend di ${BACKEND_URL} sedang berjalan dan dapat diakses.`;
+      console.error(`❌ ${msg}`);
+      throw new Error(msg);
     }
+    console.error(`❌ Fetch error to ${url}:`, error);
     throw error;
   } finally {
     clearTimeout(timeoutId);
