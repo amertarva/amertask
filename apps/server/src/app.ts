@@ -59,6 +59,7 @@ export const app = new Elysia()
     version: "1.0.0",
     status: "running",
   }))
+  .get("/ping", () => "pong")
   .get("/health", () => {
     const supabaseHealth = getSupabaseHealth();
 

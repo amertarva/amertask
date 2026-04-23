@@ -1,15 +1,21 @@
 import { app } from "../src/app";
 
 async function handleRequest(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  console.log(`[${request.method}] ${url.pathname} - Backend function started`);
+
   try {
-    return await app.handle(request);
+    const response = await app.handle(request);
+    console.log(`[${request.method}] ${url.pathname} - Handled: ${response.status}`);
+    return response;
   } catch (error) {
-    console.error("[vercel handler crash]", error);
+    console.error(`[${request.method}] ${url.pathname} - CRASH:`, error);
 
     return new Response(
       JSON.stringify({
         error: "FUNCTION_RUNTIME_ERROR",
-        message: "Terjadi kesalahan runtime pada backend.",
+        message: "Internal Backend Error",
+        details: error instanceof Error ? error.message : String(error),
       }),
       {
         status: 500,
@@ -19,13 +25,12 @@ async function handleRequest(request: Request): Promise<Response> {
   }
 }
 
-// Vercel Bun runtime — compatible with both Edge-style and Bun.serve-style entrypoints.
 export default handleRequest;
-
-// Also export GET/POST/PATCH/DELETE/OPTIONS for Vercel Node.js/Edge runtime compatibility
 export const GET = handleRequest;
 export const POST = handleRequest;
 export const PATCH = handleRequest;
 export const DELETE = handleRequest;
 export const PUT = handleRequest;
 export const OPTIONS = handleRequest;
+
+export { handleRequest as handler };
