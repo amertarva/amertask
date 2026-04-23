@@ -42,14 +42,8 @@ export default function MobileDashboardPreview() {
           borderRadius: "2.5rem",
         }}
       >
-        {/* Dynamic Island / Notch */}
-        {/* We keep a subtle CSS notch in case the mockup image has a transparent notch area or if we need to layer it */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-[110px] h-[26px] bg-zinc-950 dark:bg-zinc-950 rounded-full z-40 shadow-[inset_0_-1px_2px_rgba(255,255,255,0.1)] flex items-center justify-between px-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-zinc-900/80 border border-zinc-800/50 shadow-inner"></div>
-          <div className="w-2.5 h-2.5 rounded-full bg-blue-500/20 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-        </div>
-
         {/* Status Bar Mock */}
+
         <div className="w-full h-10 flex justify-between items-center px-6 pt-1 text-[11px] font-medium text-text-muted bg-background/95 backdrop-blur-md z-30 absolute top-0 left-0 right-0">
           <span className="font-semibold tracking-wider text-text pl-1">
             9:41
