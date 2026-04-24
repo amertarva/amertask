@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MoveRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import DashboardPreviewSection from "@/components/home/preview/DashboardPreviewSection";
 import MobileDashboardPreview from "@/components/home/mobile/MobileDashboardPreview";
@@ -77,14 +77,12 @@ export default function HeroSection() {
             <Link href="/auth/login" className="w-full sm:w-auto">
               <Button
                 size="lg"
-                variant="primary"
-                className="group relative w-full overflow-hidden rounded-2xl px-8 py-6 text-lg font-bold shadow-[0_0_40px_-10px_rgba(var(--color-primary),0.5)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_60px_-15px_rgba(var(--color-primary),0.7)] ring-1 ring-primary/50"
+                className="group w-full rounded-2xl !bg-[#e9c46a] dark:!bg-[#F4D35E] hover:!bg-[#e9c46a] dark:hover:!bg-[#F4D35E] hover:brightness-95 px-8 py-7 text-xl font-medium !text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border-none"
                 rightIcon={
-                  <ArrowRight className="w-5 h-5 transition-transform duration-300 group-hover:translate-x-1.5" />
+                  <MoveRight className="w-7 h-7 ml-2 transition-transform duration-300 group-hover:translate-x-2" strokeWidth={2.5} />
                 }
               >
-                <div className="absolute inset-0 translate-y-[100%] bg-gradient-to-t from-white/20 to-transparent transition-transform duration-300 group-hover:translate-y-[50%]"></div>
-                <span className="relative z-10">Mulai Eksplorasi</span>
+                Mulai Eksplorasi
               </Button>
             </Link>
             <Button
