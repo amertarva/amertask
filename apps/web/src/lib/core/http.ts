@@ -42,12 +42,12 @@ function normalizeBaseUrl(rawValue: string): string {
   return DEFAULT_BASE_URL;
 }
 
-function buildApiUrl(path: string): string {
+const BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? "");
+
+export function buildApiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${BASE_URL}${normalizedPath}`;
 }
-
-const BASE_URL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? "");
 
 console.log("🔧 BASE_URL configured:", BASE_URL);
 

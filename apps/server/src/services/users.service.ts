@@ -1,51 +1,17 @@
+// Barrel file — routes hanya import dari sini
+
+export { getUserById, updateUserProfile } from "./users/users-profile.service";
+export { getUserActivity } from "./users/users-activity.service";
+
+// Legacy usersService object for backward compatibility
 import { supabase } from "../lib/supabase";
-import { errors } from "../lib/errors";
-import {
-  resolveCandidateUserIds,
-  resolveExistingUserId,
-} from "../lib/userIdentity";
+import { resolveCandidateUserIds } from "../lib/userIdentity";
+import { getUserById, updateUserProfile } from "./users/users-profile.service";
+import { getUserActivity } from "./users/users-activity.service";
 
 export const usersService = {
   async getProfile(userId: string, email?: string) {
-    const resolvedUserId = await resolveExistingUserId(userId, email);
-
-    console.log("👤 Getting user profile:", {
-      userId,
-      email,
-      resolvedUserId,
-    });
-
-    // @ts-ignore - Supabase type inference issue
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", resolvedUserId)
-      .maybeSingle<{
-        id: string;
-        name: string;
-        email: string;
-        avatar: string | null;
-        initials: string;
-        created_at: string;
-        updated_at: string;
-      }>();
-
-    if (error) {
-      console.error("❌ Error fetching user:", error);
-      throw errors.internal(`Gagal mengambil user: ${error.message}`);
-    }
-
-    if (!user) {
-      console.error("❌ User not found:", {
-        userId,
-        email,
-        resolvedUserId,
-      });
-      throw errors.notFound("User tidak ditemukan");
-    }
-
-    console.log("✅ User found:", { userId: user.id, name: user.name });
-
+    const user = await getUserById(userId, email);
     const candidateUserIds = await resolveCandidateUserIds(userId, email);
     if (!candidateUserIds.includes(user.id)) {
       candidateUserIds.push(user.id);
@@ -151,128 +117,6 @@ export const usersService = {
     };
   },
 
-  async updateProfile(
-    userId: string,
-    updates: { name?: string; avatar?: string },
-    email?: string,
-  ) {
-    const resolvedUserId = await resolveExistingUserId(userId, email);
-
-    console.log("✏️ Updating user profile:", {
-      userId,
-      email,
-      resolvedUserId,
-      updates,
-    });
-
-    const { data, error } = (await supabase
-      .from("users")
-      // @ts-ignore - Supabase type inference issue
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", resolvedUserId)
-      .select()
-      .maybeSingle()) as any;
-
-    if (error) {
-      console.error("❌ Error updating user:", error);
-      throw errors.internal(`Gagal update user: ${error.message}`);
-    }
-
-    if (!data) {
-      throw errors.notFound("User tidak ditemukan");
-    }
-
-    console.log("✅ User updated:", { userId: data.id, name: data.name });
-    return data;
-  },
-
-  async getUserActivity(userId: string, days: number = 365, email?: string) {
-    const candidateUserIds = await resolveCandidateUserIds(userId, email);
-
-    console.log("📊 Getting user activity:", {
-      userId,
-      email,
-      days,
-      candidateUserIds,
-    });
-
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-
-    // @ts-ignore - Supabase type inference issue
-    const { data: issues, error } = await supabase
-      .from("issues")
-      .select("created_at")
-      .in("created_by_id", candidateUserIds)
-      .gte("created_at", startDate.toISOString())
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("❌ Error fetching activity:", error);
-      throw errors.internal("Gagal mengambil aktivitas");
-    }
-
-    // Group by date
-    const activityMap = new Map<string, number>();
-    // @ts-ignore - Supabase type inference issue
-    issues?.forEach((issue) => {
-      // @ts-ignore - Supabase type inference issue
-      const date = new Date(issue.created_at).toISOString().split("T")[0];
-      activityMap.set(date, (activityMap.get(date) || 0) + 1);
-    });
-
-    // Convert to array
-    const activities = Array.from(activityMap.entries()).map(
-      ([date, count]) => ({
-        date,
-        count,
-      }),
-    );
-
-    // Calculate stats
-    const last30Days = new Date();
-    last30Days.setDate(last30Days.getDate() - 30);
-    // @ts-ignore - Supabase type inference issue
-    const totalLast30Days =
-      // @ts-ignore - Supabase type inference issue
-      issues?.filter((i) => new Date(i.created_at) >= last30Days).length || 0;
-
-    // Calculate current streak
-    let currentStreak = 0;
-    const today = new Date().toISOString().split("T")[0];
-    let checkDate = new Date();
-
-    while (currentStreak < 365) {
-      const dateStr = checkDate.toISOString().split("T")[0];
-      if (activityMap.has(dateStr)) {
-        currentStreak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else if (dateStr === today) {
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-
-    const dailyAverage = totalLast30Days / 30;
-
-    console.log("✅ Activity calculated:", {
-      totalActivities: activities.length,
-      totalLast30Days,
-      currentStreak,
-      dailyAverage: dailyAverage.toFixed(1),
-    });
-
-    return {
-      activities,
-      stats: {
-        totalLast30Days,
-        currentStreak,
-        dailyAverage: parseFloat(dailyAverage.toFixed(1)),
-      },
-    };
-  },
+  updateProfile: updateUserProfile,
+  getUserActivity,
 };

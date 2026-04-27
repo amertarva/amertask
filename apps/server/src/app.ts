@@ -9,6 +9,9 @@ import { triageRoutes } from "./routes/triage.routes";
 import { inboxRoutes } from "./routes/inbox.routes";
 import { analyticsRoutes } from "./routes/analytics.routes";
 import { exportRoutes } from "./routes/export.routes";
+import { schedulingRoutes } from "./routes/scheduling.routes";
+import { planningRoutes } from "./routes/planning.routes";
+import { standalonePlanningRoutes } from "./routes/standalone-planning.routes";
 import { AppError } from "./lib/errors";
 import { getSupabaseHealth } from "./lib/supabase";
 
@@ -93,6 +96,9 @@ export const app = new Elysia()
   .use(inboxRoutes)
   .use(analyticsRoutes)
   .use(exportRoutes)
+  .use(schedulingRoutes)
+  .use(planningRoutes)
+  .use(standalonePlanningRoutes)
   // Global error handler
   .onError(({ code, error, set }) => {
     console.error("Global error handler:", {

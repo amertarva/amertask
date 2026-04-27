@@ -29,7 +29,7 @@ export interface Issue {
   createdAt: string;
   updatedAt: string;
   // Triage-specific
-  source?: "slack" | "email" | "manual";
+  source?: "slack" | "email" | "manual" | "planning";
   isTriaged?: boolean;
   triageReason?: string; // Alasan terkendala untuk antrean triage
   // Planning & Backlog specific

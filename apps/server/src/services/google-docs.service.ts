@@ -28,6 +28,9 @@ export interface PlanningItem {
   status: string;
   priority: string;
   createdBy?: string;
+  startDate?: string;
+  dueDate?: string;
+  estimatedHours?: number;
 }
 
 export interface BacklogItem {
@@ -1002,27 +1005,39 @@ export const googleDocsService = {
     const updatedAt = toIndonesianDateTime();
     const headerRow = [
       "No",
-      "Task ID",
-      "Nama Tugas",
-      "Expected Output",
-      "Ditugaskan ke",
-      "Status",
-      "Prioritas",
-      "Dibuat oleh",
+      "ID Backlog",
+      "Fitur yang Dikerjakan",
+      "Penanggung Jawab",
+      "Jadwal & Estimasi",
+      "Output yang Diharapkan",
     ];
 
-    const dataRows = items.map((item, idx) => [
-      String(idx + 1),
-      `${item.teamSlug}-${item.number}`,
-      item.title ?? "",
-      item.planInfo ?? "-",
-      item.assignedUser ?? "Unassigned",
-      fmtStatus(item.status),
-      fmtPriority(item.priority),
-      item.createdBy ?? "-",
-    ]);
+    const dataRows = items.map((item, idx) => {
+      // Format jadwal
+      let scheduleText = "-";
+      if (item.startDate && item.dueDate) {
+        const start = toIndonesianDate(item.startDate);
+        const end = toIndonesianDate(item.dueDate);
+        scheduleText = `${start} - ${end}`;
 
-    const columnWidths = [24, 54, 100, 90, 72, 54, 48, 26];
+        if (item.estimatedHours && item.estimatedHours > 0) {
+          scheduleText += `\n(Est: ${item.estimatedHours} jam)`;
+        }
+      } else if (item.estimatedHours && item.estimatedHours > 0) {
+        scheduleText = `Estimasi: ${item.estimatedHours} jam`;
+      }
+
+      return [
+        String(idx + 1),
+        `${item.teamSlug.toUpperCase()}-${item.number}`,
+        item.title ?? "",
+        item.assignedUser ?? "Belum ditugaskan",
+        scheduleText,
+        item.planInfo ?? "Belum ada deskripsi output",
+      ];
+    });
+
+    const columnWidths = [30, 70, 140, 90, 100, 140];
 
     await writeSectionToDoc({
       documentId,
@@ -1030,7 +1045,7 @@ export const googleDocsService = {
       headerRow,
       dataRows,
       columnWidths,
-      sectionTitle: `Planning - ${teamName}`,
+      sectionTitle: `Sprint Planning - ${teamName}`,
       sectionSubtitle: `Diperbarui: ${updatedAt} | Total: ${items.length} task`,
     });
   },

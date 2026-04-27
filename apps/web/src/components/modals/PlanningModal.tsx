@@ -1,11 +1,12 @@
-import React from "react";
-import { Edit2, Plus, Save, X, Trash2 } from "lucide-react";
+import { Edit2, Plus, Save, X, Trash2, ChevronDown } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Dropdown } from "@/components/ui/Dropdown";
+import { DatePicker } from "@/components/ui/Calendar";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/store/useThemeStore";
+import { type PlanningModalProps } from "@/types/components/PlanningModalTypes";
 
 export function PlanningModal({
   mounted,
@@ -14,10 +15,12 @@ export function PlanningModal({
   editForm,
   teamMembers,
   isMembersLoading,
+  teamSlug,
+  nextPlanningNumber,
   setEditForm,
   onClose,
   onSave,
-}: any) {
+}: PlanningModalProps) {
   const { colorTheme } = useThemeStore();
   const isDarkMode =
     mounted &&
@@ -25,7 +28,7 @@ export function PlanningModal({
       (typeof document !== "undefined" &&
         document.documentElement.classList.contains("dark")));
   const members = Array.isArray(teamMembers) ? teamMembers : [];
-  const assigneeOptions = members.map((member: any) => ({
+  const assigneeOptions = members.map((member) => ({
     value: member.id,
     label: `${member.name} (${member.role.toUpperCase()})`,
   }));
@@ -86,7 +89,13 @@ export function PlanningModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Input
               label="ID Backlog"
-              value={editForm.id || ""}
+              value={
+                isCreating
+                  ? `${teamSlug?.toUpperCase()}-${String(nextPlanningNumber || 1).padStart(3, "0")}`
+                  : editingItem?.number
+                    ? `${teamSlug?.toUpperCase()}-P${String(editingItem.number).padStart(3, "0")}`
+                    : editForm.id || ""
+              }
               className={cn(
                 "uppercase font-medium",
                 isDarkMode
@@ -111,41 +120,185 @@ export function PlanningModal({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Select
-              label="Penanggung Jawab"
-              value={editForm.assigneeId || ""}
-              onChange={(assigneeId) => {
-                const selectedMember = members.find(
-                  (member: any) => member.id === assigneeId,
-                );
+            <div className="w-full relative z-50">
+              <label className="mb-2 block text-sm font-bold text-text ml-1">
+                Penanggung Jawab
+              </label>
+              <div className="relative w-full">
+                <Dropdown
+                  align="left"
+                  className="w-full"
+                  reserveSpaceWhenOpen
+                  trigger={
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center justify-between bg-transparent border border-border rounded-xl px-4 py-3 text-sm font-semibold text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer shadow-sm hover:bg-muted/30",
+                        isDarkMode ? "bg-background" : "bg-white",
+                      )}
+                    >
+                      <span
+                        className={editForm.assigneeId ? "" : "text-text-muted"}
+                      >
+                        {isMembersLoading
+                          ? "Memuat anggota tim..."
+                          : assigneeOptions.find(
+                              (opt) => opt.value === editForm.assigneeId,
+                            )?.label || "Pilih anggota tim"}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-text-muted" />
+                    </button>
+                  }
+                  items={members.map((member) => ({
+                    label: `${member.name} (${member.role.toUpperCase()})`,
+                    onClick: () => {
+                      setEditForm({
+                        ...editForm,
+                        assigneeId: member.id,
+                        assignedUser: member.name,
+                        avatar: member.initials || "U",
+                      });
+                    },
+                  }))}
+                />
+              </div>
+            </div>
+            <div className="w-full relative z-40">
+              <label className="mb-2 block text-sm font-bold text-text ml-1">
+                Priority
+              </label>
+              <div className="relative w-full">
+                <Dropdown
+                  align="left"
+                  className="w-full"
+                  reserveSpaceWhenOpen
+                  trigger={
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center justify-between bg-transparent border border-border rounded-xl px-4 py-3 text-sm font-semibold text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer shadow-sm hover:bg-muted/30",
+                        isDarkMode ? "bg-background" : "bg-white",
+                      )}
+                    >
+                      <span>
+                        {[
+                          { value: "urgent", label: "Penting" },
+                          { value: "high", label: "Tinggi" },
+                          { value: "medium", label: "Medium" },
+                          { value: "low", label: "Rendah" },
+                        ].find(
+                          (p) => p.value === (editForm.priority || "medium"),
+                        )?.label || "Medium"}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-text-muted" />
+                    </button>
+                  }
+                  items={[
+                    { value: "urgent", label: "Penting" },
+                    { value: "high", label: "Tinggi" },
+                    { value: "medium", label: "Medium" },
+                    { value: "low", label: "Rendah" },
+                  ].map((opt) => ({
+                    label: opt.label,
+                    onClick: () =>
+                      setEditForm({ ...editForm, priority: opt.value }),
+                  }))}
+                />
+              </div>
+            </div>
+          </div>
 
-                setEditForm({
-                  ...editForm,
-                  assigneeId,
-                  assignedUser: selectedMember?.name || "",
-                  avatar: selectedMember?.initials || "U",
-                });
-              }}
-              options={assigneeOptions}
-              placeholder={
-                isMembersLoading ? "Memuat anggota tim..." : "Pilih anggota tim"
-              }
-              className={cn(
-                isDarkMode
-                  ? "bg-background border-input text-text"
-                  : "bg-white border-slate-200 text-text",
-              )}
-            />
-            <Input
-              label="Status Pekerjaan"
-              value="To Do"
-              className={cn(
-                isDarkMode
-                  ? "bg-background border-input"
-                  : "bg-white border-slate-200",
-              )}
-              disabled
-            />
+          {/* Date & Estimation Fields */}
+          <div
+            className={cn(
+              "space-y-4 pt-4 border-t",
+              isDarkMode ? "border-border/40" : "border-slate-200",
+            )}
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-1 h-5 bg-primary rounded-full" />
+              <label className="block text-sm font-bold text-text">
+                Jadwal & Estimasi Pengerjaan
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="w-full relative z-30">
+                <label className="block text-sm font-bold text-text ml-1 mb-2">
+                  Tanggal Mulai
+                </label>
+                <div className="relative w-full">
+                  <DatePicker
+                    value={editForm.startDate || ""}
+                    onChange={(date) =>
+                      setEditForm({ ...editForm, startDate: date })
+                    }
+                    placeholder="Pilih tanggal mulai..."
+                    className="w-full"
+                    reserveSpaceWhenOpen
+                    minDate={new Date().toISOString().split("T")[0]}
+                  />
+                </div>
+              </div>
+              <div className="w-full relative z-20">
+                <label className="block text-sm font-bold text-text ml-1 mb-2">
+                  Tanggal Selesai
+                </label>
+                <div className="relative w-full">
+                  <DatePicker
+                    value={editForm.dueDate || ""}
+                    onChange={(date) =>
+                      setEditForm({ ...editForm, dueDate: date })
+                    }
+                    placeholder="Pilih tanggal selesai..."
+                    className="w-full"
+                    disabled={!editForm.startDate}
+                    reserveSpaceWhenOpen
+                    minDate={
+                      editForm.startDate ||
+                      new Date().toISOString().split("T")[0]
+                    }
+                  />
+                </div>
+              </div>
+              <div className="w-full relative z-10">
+                <Input
+                  label="Estimasi Jam (Opsional)"
+                  type="number"
+                  value={editForm.estimatedHours || ""}
+                  onChange={(e) =>
+                    setEditForm({
+                      ...editForm,
+                      estimatedHours: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  min={0}
+                  step={1}
+                  placeholder="Kosongkan jika belum tahu"
+                  className={cn(
+                    "font-medium",
+                    isDarkMode
+                      ? "bg-background border-input"
+                      : "bg-white border-slate-200",
+                  )}
+                />
+              </div>
+            </div>
+
+            {editForm.startDate && editForm.dueDate && (
+              <div className="text-xs text-text-muted bg-muted/30 border border-border/50 rounded-lg px-3 py-2">
+                Durasi:{" "}
+                {Math.ceil(
+                  (new Date(editForm.dueDate).getTime() -
+                    new Date(editForm.startDate).getTime()) /
+                    (1000 * 60 * 60 * 24),
+                )}{" "}
+                hari
+                {editForm.estimatedHours &&
+                  editForm.estimatedHours > 0 &&
+                  ` • ${Math.ceil(editForm.estimatedHours / 8)} hari kerja (8 jam/hari)`}
+              </div>
+            )}
           </div>
 
           <div
@@ -156,7 +309,7 @@ export function PlanningModal({
           >
             <div className="flex items-center justify-between">
               <label className="block text-sm font-medium text-text">
-                Output yang Diharapkan (Acceptance Criteria)
+                Output yang Diharapkan
               </label>
               <Button
                 variant="ghost"
@@ -205,7 +358,12 @@ export function PlanningModal({
                       variant="ghost"
                       size="icon"
                       onClick={() => {
-                        const newOut = [...editForm.expectedOutput];
+                        const currentOutput = Array.isArray(
+                          editForm.expectedOutput,
+                        )
+                          ? editForm.expectedOutput
+                          : [editForm.expectedOutput || ""];
+                        const newOut = [...currentOutput];
                         newOut.splice(index, 1);
                         setEditForm({ ...editForm, expectedOutput: newOut });
                       }}

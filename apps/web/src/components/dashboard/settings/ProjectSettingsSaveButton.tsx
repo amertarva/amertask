@@ -1,9 +1,5 @@
 import { Loader2, Save } from "lucide-react";
-
-type ProjectSettingsSaveButtonProps = {
-  isSaving: boolean;
-  onSave: () => void;
-};
+import { type ProjectSettingsSaveButtonProps } from "@/types/components/ProjectSettingsTypes";
 
 export function ProjectSettingsSaveButton({
   isSaving,

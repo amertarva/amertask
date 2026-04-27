@@ -49,6 +49,8 @@ interface RawIssueRow {
   description: string | null;
   status: string;
   priority: string;
+  // NOTE: reason and plan_info moved to separate tables (issue_triage, issue_planning)
+  // These fields are kept for backward compatibility with export queries
   reason: string | null;
   plan_info: string | null;
   updated_at: string | null;
@@ -208,12 +210,18 @@ async function resolveTeamExportContext(
   };
 }
 
-function toPlanningItems(teamSlug: string, issues: RawIssueRow[]) {
+function toPlanningItems(teamSlug: string, issues: any[]) {
   return issues
     .filter((issue) => issue.status === "backlog")
     .map((issue) => {
       const assignee = pickRelatedUser(issue.assignee);
       const createdBy = pickRelatedUser(issue.created_by);
+      // Extract plan_info from nested planning object
+      const planInfo =
+        issue.planning?.plan_info ?? issue.plan_info ?? undefined;
+      const startDate = issue.planning?.start_date ?? undefined;
+      const dueDate = issue.planning?.due_date ?? undefined;
+      const estimatedHours = issue.planning?.estimated_hours ?? undefined;
 
       return {
         id: issue.id,
@@ -221,31 +229,41 @@ function toPlanningItems(teamSlug: string, issues: RawIssueRow[]) {
         teamSlug,
         title: issue.title,
         description: issue.description ?? undefined,
-        planInfo: issue.plan_info ?? undefined,
+        planInfo,
         assignedUser: assignee?.name ?? undefined,
         status: issue.status,
         priority: issue.priority,
         createdBy: createdBy?.name ?? undefined,
+        startDate,
+        dueDate,
+        estimatedHours,
       };
     });
 }
 
-function toBacklogItems(teamSlug: string, issues: RawIssueRow[]) {
+function toBacklogItems(teamSlug: string, issues: any[]) {
   return issues
     .filter((issue) => issue.status === "backlog")
-    .map((issue) => ({
-      id: issue.id,
-      number: issue.number,
-      teamSlug,
-      title: issue.title,
-      description: issue.description ?? undefined,
-      targetUser: issue.plan_info ?? undefined,
-      priority: issue.priority,
-      reason: issue.reason ?? undefined,
-    }));
+    .map((issue) => {
+      // Extract from nested objects
+      const planInfo =
+        issue.planning?.plan_info ?? issue.plan_info ?? undefined;
+      const reason = issue.triage?.reason ?? issue.reason ?? undefined;
+
+      return {
+        id: issue.id,
+        number: issue.number,
+        teamSlug,
+        title: issue.title,
+        description: issue.description ?? undefined,
+        targetUser: planInfo,
+        priority: issue.priority,
+        reason,
+      };
+    });
 }
 
-function toExecutionItems(teamSlug: string, issues: RawIssueRow[]) {
+function toExecutionItems(teamSlug: string, issues: any[]) {
   const allowedStatuses = new Set([
     "backlog",
     "todo",
@@ -325,12 +343,11 @@ export const exportRoutes = new Elysia({
           description,
           status,
           priority,
-          reason,
-          plan_info,
           updated_at,
           created_at,
           assignee:users!issues_assignee_id_fkey(id, name, initials),
-          created_by:users!issues_created_by_id_fkey(id, name)
+          created_by:users!issues_created_by_id_fkey(id, name),
+          triage:issue_triage(reason)
           `,
         )
         .eq("team_id", team.id)
@@ -343,11 +360,80 @@ export const exportRoutes = new Elysia({
         );
       }
 
-      const issueList = (issues ?? []) as RawIssueRow[];
+      // Get planning data manually
+      const issueIds = (issues ?? []).map((i: any) => i.id);
+      let planningMap = new Map();
+      if (issueIds.length > 0) {
+        const { data: planningData } = await supabase
+          .from("issue_planning")
+          .select("issue_id, plan_info, start_date, due_date, estimated_hours")
+          .in("issue_id", issueIds)
+          .not("issue_id", "is", null);
+
+        planningMap = new Map(
+          (planningData as any[])?.map((p: any) => [p.issue_id, p]) ?? [],
+        );
+      }
+
+      // Attach planning to issues
+      const issueList = (issues ?? []).map((issue: any) => ({
+        ...issue,
+        planning: planningMap.get(issue.id) || null,
+      }));
       let exportedCount = 0;
 
       if (type === "planning") {
-        const planningItems = toPlanningItems(team.slug, issueList);
+        // For planning, get data from standalone issue_planning table
+        const { data: standalonePlannings, error: planningError } =
+          await supabase
+            .from("issue_planning")
+            .select(
+              `
+            id,
+            number,
+            title,
+            description,
+            priority,
+            status,
+            start_date,
+            due_date,
+            estimated_hours,
+            plan_info,
+            assignee:users!issue_planning_assignee_id_fkey(id, name, initials)
+            `,
+            )
+            .eq("team_id", team.id)
+            .in("status", ["planned", "in_execution"])
+            .order("number", { ascending: true });
+
+        if (planningError) {
+          throw errors.internal(
+            `Gagal mengambil data planning: ${planningError.message}`,
+          );
+        }
+
+        const planningItems = (standalonePlannings ?? []).map(
+          (planning: any) => {
+            const assignee = pickRelatedUser(planning.assignee);
+
+            return {
+              id: planning.id,
+              number: planning.number,
+              teamSlug: team.slug,
+              title: planning.title,
+              description: planning.description ?? undefined,
+              planInfo: planning.plan_info ?? planning.description ?? undefined,
+              assignedUser: assignee?.name ?? undefined,
+              status: planning.status,
+              priority: planning.priority,
+              createdBy: undefined,
+              startDate: planning.start_date ?? undefined,
+              dueDate: planning.due_date ?? undefined,
+              estimatedHours: planning.estimated_hours ?? undefined,
+            };
+          },
+        );
+
         exportedCount = planningItems.length;
         await googleDocsService.exportPlanning(
           documentId,

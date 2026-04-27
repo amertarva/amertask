@@ -1,11 +1,5 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
-
-type ProjectSettingsAlertsProps = {
-  error: string | null | undefined;
-  saveError: string | null;
-  saveSuccess: boolean;
-  errorTitle: string;
-};
+import { type ProjectSettingsAlertsProps } from "@/types/components/ProjectSettingsTypes";
 
 export function ProjectSettingsAlerts({
   error,

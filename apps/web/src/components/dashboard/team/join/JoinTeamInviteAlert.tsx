@@ -14,23 +14,10 @@ import { ApiError, teamsApi } from "@/lib/core";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/store/useThemeStore";
-
-type InvitePreview = {
-  team: {
-    id: string;
-    slug: string;
-    name: string;
-  };
-  role: "admin" | "member" | "pm";
-  expiresAt: string | null;
-  alreadyMember: boolean;
-  existingRole: string | null;
-};
-
-interface JoinTeamInviteAlertProps {
-  onJoined?: (teamSlug: string) => Promise<void> | void;
-  refreshTeams?: () => Promise<void>;
-}
+import {
+  type InvitePreview,
+  type JoinTeamInviteAlertProps,
+} from "@/types/components/JoinTeamInviteAlertProps";
 
 const ROLE_LABEL: Record<InvitePreview["role"], string> = {
   admin: "Admin",

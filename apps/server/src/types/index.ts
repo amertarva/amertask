@@ -55,11 +55,10 @@ export interface Issue {
   assigneeId: string | null;
   createdById: string;
   parentIssueId: string | null;
-  source: "slack" | "email" | "manual";
+  source: "slack" | "email" | "manual" | "planning";
   isTriaged: boolean;
-  reason: string | null;
-  triageReason: string | null;
-  planInfo: string | null;
+  // NOTE: reason, triageReason, planInfo moved to separate tables
+  // Access via: issue.triage.reason, issue.planning.plan_info
   createdAt: string;
   updatedAt: string;
 }

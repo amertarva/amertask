@@ -1,12 +1,7 @@
-import { type Dispatch, type SetStateAction } from "react";
 import { ChevronDown } from "lucide-react";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { type FormState } from "./types";
-
-type ProjectInfoSectionProps = {
-  form: FormState;
-  setForm: Dispatch<SetStateAction<FormState>>;
-};
+import { type ProjectInfoSectionProps } from "@/types/components/ProjectSettingsTypes";
 
 export function ProjectInfoSection({ form, setForm }: ProjectInfoSectionProps) {
   return (

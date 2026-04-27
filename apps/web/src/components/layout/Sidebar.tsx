@@ -11,6 +11,8 @@ import {
   Users,
   Hexagon,
   Settings as SettingsIcon,
+  Network,
+  Bug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/store/useThemeStore";
@@ -116,7 +118,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
       className={cn(
         "border-r border-border bg-background flex flex-col h-full overflow-y-auto transition-all duration-300",
         "absolute md:relative z-40 h-full",
-        isCollapsed ? "-translate-x-full md:translate-x-0 w-64 md:w-20" : "translate-x-0 w-64 shadow-2xl md:shadow-none",
+        isCollapsed
+          ? "-translate-x-full md:translate-x-0 w-64 md:w-20"
+          : "translate-x-0 w-64 shadow-2xl md:shadow-none",
       )}
     >
       {/* Navigation Links */}
@@ -147,6 +151,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
             isActive={pathname.includes("/planning")}
             isCollapsed={isCollapsed}
           />
+          <SidebarItem
+            icon={<Network className="w-4 h-4" />}
+            label="Task Graph"
+            href={`/projects/${teamSlug}/graph`}
+            isActive={pathname.includes("/graph")}
+            isCollapsed={isCollapsed}
+          />
         </div>
 
         <GroupHeader label="Pengerjaan" isCollapsed={isCollapsed} />
@@ -166,8 +177,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
             isCollapsed={isCollapsed}
           />
           <SidebarItem
-            icon={<Hexagon className="w-4 h-4" />}
-            label="Bug Triage"
+            icon={<Bug className="w-4 h-4" />}
+            label="Bug & Triage"
             href={`/projects/${teamSlug}/triage`}
             isActive={pathname.includes("/triage")}
             isCollapsed={isCollapsed}

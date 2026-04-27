@@ -1,13 +1,7 @@
 import { Folder, Link as LinkIcon, Loader2, Trash2, Users } from "lucide-react";
 import { type ProjectSettingsTab } from "./types";
 import { ProjectSettingsTabButton } from "./ProjectSettingsTabButton";
-
-type ProjectSettingsSidebarProps = {
-  activeTab: ProjectSettingsTab;
-  onTabChange: (tab: ProjectSettingsTab) => void;
-  isDeleting: boolean;
-  onDeleteProject: () => void;
-};
+import { type ProjectSettingsSidebarProps } from "@/types/components/ProjectSettingsTypes";
 
 export function ProjectSettingsSidebar({
   activeTab,

@@ -55,7 +55,9 @@ export function IssuesBoard() {
   const params = useParams();
   const teamSlug = String(params?.teamSlug || "");
   const { issues, isLoading, error } = useIssues(teamSlug, {});
-  const [mobileTab, setMobileTab] = useState<"todo" | "in_progress" | "done">("todo");
+  const [mobileTab, setMobileTab] = useState<"todo" | "in_progress" | "done">(
+    "todo",
+  );
 
   // Transform issues to task cards
   const { todoTasks, inProgressTasks, doneTasks } = useMemo(() => {
@@ -65,8 +67,12 @@ export function IssuesBoard() {
         .toLowerCase()
         .replace(/[\s-]+/g, "_");
 
-    const isTodoStatus = (status: string) => {
-      const normalized = normalizeStatus(status);
+    const isTodoStatus = (issue: Issue) => {
+      const normalized = normalizeStatus(issue.status);
+
+      // PENTING: Backlog TIDAK mempengaruhi tampilan di Execution Board
+      // Backlog hanya informasi status, bukan kriteria untuk menyembunyikan task
+      // Semua task yang sudah masuk Execution tetap ditampilkan
       return ["todo", "to_do", "perlu_dikerjakan", "backlog"].includes(
         normalized,
       );
@@ -86,7 +92,7 @@ export function IssuesBoard() {
     });
 
     const todo = issues
-      .filter((issue) => isTodoStatus(issue.status))
+      .filter((issue) => isTodoStatus(issue))
       .map(transformIssue);
 
     const inProgress = issues
@@ -215,7 +221,8 @@ export function IssuesBoard() {
                 : "text-text-muted hover:text-text",
             )}
           >
-            Proses <span className="ml-1 opacity-70">({inProgressTasks.length})</span>
+            Proses{" "}
+            <span className="ml-1 opacity-70">({inProgressTasks.length})</span>
           </button>
           <button
             onClick={() => setMobileTab("done")}
@@ -226,7 +233,8 @@ export function IssuesBoard() {
                 : "text-text-muted hover:text-text",
             )}
           >
-            Selesai <span className="ml-1 opacity-70">({doneTasks.length})</span>
+            Selesai{" "}
+            <span className="ml-1 opacity-70">({doneTasks.length})</span>
           </button>
         </div>
       )}

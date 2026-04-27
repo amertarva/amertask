@@ -1,11 +1,6 @@
-import { type Dispatch, type SetStateAction } from "react";
 import { Link as LinkIcon } from "lucide-react";
 import { type FormState } from "./types";
-
-type ProjectIntegrationsSectionProps = {
-  form: FormState;
-  setForm: Dispatch<SetStateAction<FormState>>;
-};
+import { type ProjectIntegrationsSectionProps } from "@/types/components/ProjectSettingsTypes";
 
 export function ProjectIntegrationsSection({
   form,
@@ -13,7 +8,9 @@ export function ProjectIntegrationsSection({
 }: ProjectIntegrationsSectionProps) {
   return (
     <div className="bg-card border border-border rounded-3xl p-6 sm:p-8 shadow-sm">
-      <h2 className="text-xl sm:text-2xl font-extrabold text-text mb-2">Integrasi</h2>
+      <h2 className="text-xl sm:text-2xl font-extrabold text-text mb-2">
+        Integrasi
+      </h2>
       <p className="text-sm font-medium text-text-muted">
         Hubungkan proyek dengan layanan eksternal untuk dokumentasi dan
         kolaborasi kode.

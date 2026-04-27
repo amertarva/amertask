@@ -152,9 +152,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 initial={{ opacity: 0, y: 8, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className={cn(
-                  "min-w-55 rounded-xl shadow-2xl opacity-100 overflow-hidden p-1.5 focus:outline-none",
+                  "min-w-55 rounded-xl shadow-xl overflow-hidden p-1.5 focus:outline-none opacity-100",
                   isDarkMode
                     ? "bg-background-secondary border border-border/70"
                     : "bg-white border border-slate-200",
@@ -169,10 +169,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                       return (
                         <div
                           key={`divider-${index}`}
-                          className={cn(
-                            "my-1.5 h-px",
-                            isDarkMode ? "bg-border/50" : "bg-slate-200",
-                          )}
+                          className="my-1.5 h-px bg-border"
                         />
                       );
                     }
@@ -183,30 +180,20 @@ export const Dropdown: React.FC<DropdownProps> = ({
                         onClick={() => handleItemClick(item)}
                         disabled={item.disabled}
                         className={cn(
-                          "group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 outline-none",
+                          "group flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 outline-none",
                           item.disabled
-                            ? "cursor-not-allowed opacity-40"
+                            ? "cursor-not-allowed opacity-50"
                             : item.danger
-                              ? cn(
-                                  "text-text cursor-pointer hover:text-priority-urgent",
-                                  isDarkMode
-                                    ? "hover:bg-priority-urgent/15"
-                                    : "hover:bg-priority-urgent/10",
-                                )
-                              : cn(
-                                  "text-text cursor-pointer hover:text-primary",
-                                  isDarkMode
-                                    ? "hover:bg-primary/15"
-                                    : "hover:bg-primary/10",
-                                ),
+                              ? "text-text cursor-pointer hover:text-priority-urgent hover:bg-priority-urgent/10"
+                              : "text-text cursor-pointer hover:text-primary hover:bg-muted",
                         )}
                       >
                         {item.icon && (
                           <span
                             className={cn(
-                              "transition-colors shrink-0 flex items-center justify-center",
+                              "transition-colors shrink-0 flex items-center justify-center w-4 h-4",
                               item.danger
-                                ? "text-priority-urgent group-hover:text-priority-urgent"
+                                ? "text-priority-urgent/70 group-hover:text-priority-urgent"
                                 : "text-text-muted group-hover:text-primary",
                             )}
                           >

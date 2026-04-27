@@ -47,10 +47,17 @@ if (!BACKEND_URL) {
 } else {
   try {
     const url = new URL(BACKEND_URL);
-    console.log(`🔧 Proxy target initialized: ${url.protocol}//${url.hostname}`);
-    
-    if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && process.env.NODE_ENV === "production") {
-      console.error("🚨 ERROR: BACKEND_URL mengarah ke localhost di environment PRODUCTION. Ini akan menyebabkan timeout (502).");
+    console.log(
+      `🔧 Proxy target initialized: ${url.protocol}//${url.hostname}`,
+    );
+
+    if (
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+      process.env.NODE_ENV === "production"
+    ) {
+      console.error(
+        "🚨 ERROR: BACKEND_URL mengarah ke localhost di environment PRODUCTION. Ini akan menyebabkan timeout (502).",
+      );
     }
   } catch {
     console.error(`❌ BACKEND_URL '${BACKEND_URL}' bukan URL yang valid.`);
@@ -59,32 +66,48 @@ if (!BACKEND_URL) {
 
 export { BACKEND_URL };
 
-export function guardBackendUrl(request?: Request): { error: string; message: string } | null {
+export function guardBackendUrl(
+  request?: Request,
+): { error: string; message: string } | null {
   if (!BACKEND_URL) {
     return {
       error: "CONFIG_ERROR",
-      message: "Backend URL belum dikonfigurasi di Vercel Settings. Hubungi administrator untuk set BACKEND_URL.",
+      message:
+        "Backend URL belum dikonfigurasi di Vercel Settings. Hubungi administrator untuk set BACKEND_URL.",
     };
   }
 
   try {
     const url = new URL(BACKEND_URL);
-    
-    // Loop detection
+
+    // Loop detection - compare full host:port, not just hostname
     if (request) {
       const currentHost = request.headers.get("host");
-      if (currentHost && url.hostname === currentHost.split(":")[0]) {
-        return {
-          error: "CONFIG_ERROR",
-          message: "🚨 Infinite Loop Terdeteksi: BACKEND_URL mengarah ke URL frontend sendiri. Ubah BACKEND_URL ke URL backend (api-amertask.vercel.app).",
-        };
+      if (currentHost) {
+        // Build backend host:port for comparison
+        const backendHost = url.port
+          ? `${url.hostname}:${url.port}`
+          : `${url.hostname}:${url.protocol === "https:" ? "443" : "80"}`;
+
+        // Only flag as loop if EXACT match (including port)
+        if (currentHost === backendHost) {
+          return {
+            error: "CONFIG_ERROR",
+            message:
+              "🚨 Infinite Loop Terdeteksi: BACKEND_URL mengarah ke URL frontend sendiri. Ubah BACKEND_URL ke URL backend (api-amertask.vercel.app).",
+          };
+        }
       }
     }
 
-    if ((url.hostname === "localhost" || url.hostname === "127.0.0.1") && process.env.NODE_ENV === "production") {
+    if (
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+      process.env.NODE_ENV === "production"
+    ) {
       return {
         error: "CONFIG_ERROR",
-        message: "Konfigurasi error: BACKEND_URL masih menggunakan localhost di production. Silakan ubah di Vercel Settings.",
+        message:
+          "Konfigurasi error: BACKEND_URL masih menggunakan localhost di production. Silakan ubah di Vercel Settings.",
       };
     }
   } catch {
@@ -140,12 +163,13 @@ export async function safeJson(response: Response): Promise<unknown> {
   }
 
   const text = await response.text();
-  
+
   // Detect if we got HTML instead of JSON
   if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
     return {
       error: "HTML_RESPONSE_ERROR",
-      message: "Proxy menerima HTML bukan JSON. Pastikan BACKEND_URL mengarah ke API (https://api-amertask.vercel.app) bukan ke URL frontend sendiri.",
+      message:
+        "Proxy menerima HTML bukan JSON. Pastikan BACKEND_URL mengarah ke API (https://api-amertask.vercel.app) bukan ke URL frontend sendiri.",
     };
   }
 

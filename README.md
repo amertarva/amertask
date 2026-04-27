@@ -369,16 +369,58 @@ cp apps/server/.env.example apps/server/.env
 # Edit .env files dengan credentials Anda
 
 # Run database migrations
-# Jalankan file SQL di apps/server/database-migration-*.sql
+# Jalankan file SQL di apps/server/migrations/*.sql di Supabase SQL Editor
+```
 
-# Start development servers
-bun dev
+### Development
+
+#### Option 1: Automatic (Recommended)
+
+```bash
+# Windows
+.\start-dev.ps1
+
+# Linux/Mac
+chmod +x start-dev.sh
+./start-dev.sh
+```
+
+Script ini akan:
+
+- Install dependencies otomatis
+- Start backend server (port 3000)
+- Start frontend server (port 3001)
+- Membuka 2 terminal terpisah untuk monitoring
+
+#### Option 2: Manual
+
+```bash
+# Terminal 1 - Backend
+cd apps/server
+bun run dev
+# Backend akan berjalan di http://localhost:3000
+
+# Terminal 2 - Frontend
+cd apps/web
+bun run dev
+# Frontend akan berjalan di http://localhost:3001
 ```
 
 ### Akses Aplikasi
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:3001
+- **Frontend**: http://localhost:3001
+- **Backend API**: http://localhost:3000
+- **API Docs**: http://localhost:3000/docs
+
+### Troubleshooting
+
+Jika mengalami error "Infinite Loop Terdeteksi", pastikan:
+
+1. Backend berjalan di port 3000
+2. Frontend berjalan di port 3001
+3. File `.env.local` berisi `BACKEND_URL=http://localhost:3000`
+
+Lihat [DEVELOPMENT_SETUP.md](./apps/web/DEVELOPMENT_SETUP.md) untuk panduan lengkap.
 
 ---
 

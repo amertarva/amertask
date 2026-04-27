@@ -191,9 +191,9 @@ export const issuesRoutes = new Elysia()
               ]),
             ),
             isTriaged: t.Optional(t.Boolean()),
-            reason: t.Optional(t.String()),
-            triageReason: t.Optional(t.String()),
-            planInfo: t.Optional(t.String()),
+            // NOTE: reason, triageReason, planInfo deprecated - use separate tables
+            // Use POST /issues/:issueId/planning for planning data
+            // Use triage routes for triage metadata
           }),
         },
       ),
@@ -235,9 +235,9 @@ export const issuesRoutes = new Elysia()
             labels: t.Optional(t.Array(t.String())),
             assigneeId: t.Optional(t.String()),
             isTriaged: t.Optional(t.Boolean()),
-            reason: t.Optional(t.String()),
-            triageReason: t.Optional(t.String()),
-            planInfo: t.Optional(t.String()),
+            // NOTE: reason, triageReason, planInfo deprecated - use separate tables
+            // Use POST /issues/:issueId/planning for planning data
+            // Use triage routes for triage metadata
           }),
         },
       )

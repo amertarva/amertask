@@ -1,483 +1,1266 @@
-# Fix: `FUNCTION_INVOCATION_FAILED` di Vercel
+# CLAUDE.md — Refactor: Pecah Services Backend menjadi Sub-Modules
 
-## Konteks Error
+## Tujuan
 
-```
-500: INTERNAL_SERVER_ERROR
-Code: FUNCTION_INVOCATION_FAILED
-```
+Memecah setiap file `*.service.ts` yang berisi 1000+ baris menjadi
+file-file kecil bertanggung jawab tunggal, lalu menyatukannya kembali
+melalui satu barrel file (`auth.service.ts`, dst).
 
-Artinya: function **berhasil di-deploy** dan **berhasil dipanggil**, tapi **crash saat eksekusi**.
-Ini bukan build error — kode sudah masuk ke Vercel, tapi meledak saat runtime.
+**Aturan utama:**
 
-Frontend aman → masalah murni di backend serverless function.
-
----
-
-## LANGKAH 0 — Baca Log Vercel Dulu (WAJIB Sebelum Apapun)
-
-Tanpa log, semua fix di bawah hanya tebakan. Log Vercel berisi pesan error asli.
-
-```
-Vercel Dashboard
-  → Pilih project backend (api-amertask)
-  → Tab "Logs" (bukan "Deployments")
-  → Filter: Function = api/index
-  → Cari baris merah / ERROR
-  → Salin pesan error lengkapnya
-```
-
-Atau via CLI:
-
-```bash
-vercel logs api-amertask.vercel.app --follow
-```
-
-**Cocokkan error yang muncul dengan tabel di bawah, lalu langsung ke langkah yang sesuai.**
+- Semua import di routes tetap sama — `from '../services/auth.service'`
+- Tidak ada perubahan di routes, controllers, atau file lain
+- Hanya folder `services/` yang disentuh
 
 ---
 
-## Peta Error → Langkah Fix
+## Struktur Target
 
-| Pesan di Log Vercel                                | Penyebab                              | Langkah     |
-| -------------------------------------------------- | ------------------------------------- | ----------- |
-| `Cannot find module '../src/app'`                  | Path resolution gagal                 | → Langkah 1 |
-| `Cannot find module 'elysia'` atau package lain    | Dependency tidak ter-install          | → Langkah 2 |
-| `app.listen is not a function` atau `listen` crash | `.listen()` terpanggil di Vercel      | → Langkah 3 |
-| `Environment variable ... is not defined`          | Env vars belum di-set di Vercel       | → Langkah 4 |
-| `TypeError: app.handle is not a function`          | Export format salah untuk Bun runtime | → Langkah 5 |
-| Error tidak terbaca / function timeout             | Inisialisasi module crash saat import | → Langkah 6 |
-| Tidak ada log sama sekali                          | Function tidak pernah sampai ke kode  | → Langkah 7 |
+```
+services/
+├── auth/
+│   ├── jwt.service.ts          ← sign, verify, decode JWT
+│   ├── password.service.ts     ← hash, verify password
+│   ├── register.service.ts     ← logika registrasi user baru
+│   ├── login.service.ts        ← logika login + generate token
+│   ├── refresh.service.ts      ← logika refresh token
+│   └── logout.service.ts       ← logika revoke token
+├── auth.service.ts             ← barrel: re-export semua dari auth/
+│
+├── issues/
+│   ├── issues-query.service.ts ← list, getById, filter, pagination
+│   ├── issues-mutate.service.ts← create, update, delete
+│   └── issues-mapper.service.ts← konversi DB row → response shape
+├── issues.service.ts           ← barrel
+│
+├── teams/
+│   ├── teams-query.service.ts  ← list, getBySlug, getMembers
+│   ├── teams-mutate.service.ts ← create, update settings
+│   └── teams-access.service.ts ← cek membership, role validation
+├── teams.service.ts            ← barrel
+│
+├── triage/
+│   ├── triage-query.service.ts ← listUntriaged
+│   ├── triage-accept.service.ts← acceptIssue
+│   └── triage-decline.service.ts← declineIssue
+├── triage.service.ts           ← barrel
+│
+├── analytics/
+│   ├── analytics-summary.service.ts   ← hitung summary stats
+│   ├── analytics-trend.service.ts     ← completionTrend per hari
+│   └── analytics-breakdown.service.ts ← byStatus, byPriority, byAssignee
+├── analytics.service.ts        ← barrel
+│
+├── users/
+│   ├── users-profile.service.ts← getMe, updateProfile
+│   └── users-activity.service.ts← getUserActivity, heatmap calc
+├── users.service.ts            ← barrel
+│
+├── notifications/
+│   ├── notifications-query.service.ts  ← list, getUnread
+│   └── notifications-mutate.service.ts ← markRead, markAllRead, create
+├── notifications.service.ts    ← barrel
+│
+└── google-docs/
+    ├── google-docs-auth.service.ts     ← getGoogleAuth, extractDocId
+    ├── google-docs-write.service.ts    ← writeSectionToDoc, findMarkers
+    ├── google-docs-format.service.ts   ← formatPlanning/Backlog/Execution
+    └── google-docs-table.service.ts    ← buildHeaderStyle, buildRowColor, fillCell
+└── google-docs.service.ts      ← barrel
+```
 
 ---
 
-## Langkah 1 — Fix: Path Resolution (`Cannot find module '../src/app'`)
+## Prinsip Pemisahan Per File
 
-**Penyebab:** Vercel Bun runtime bundling tidak resolve relative import `../src/app` dengan benar.
+| File                  | Isi                                    | Boleh import dari                    |
+| --------------------- | -------------------------------------- | ------------------------------------ |
+| `*-query.service.ts`  | Hanya SELECT ke Supabase               | `lib/supabase`                       |
+| `*-mutate.service.ts` | INSERT, UPDATE, DELETE                 | `lib/supabase`, `*-query.service.ts` |
+| `*-mapper.service.ts` | Pure function, transform data          | Tidak boleh import Supabase          |
+| `jwt.service.ts`      | Crypto, sign/verify                    | `jose`, env vars                     |
+| `password.service.ts` | Hash/verify                            | `Bun.password` atau `bcrypt`         |
+| `*-format.service.ts` | Pure function, string/object transform | Tidak ada external import            |
+| barrel `*.service.ts` | Hanya re-export                        | Sub-files di folder yang sama        |
 
-**Fix:** Jadikan `api/index.ts` self-contained — import langsung semua yang dibutuhkan
-tanpa bergantung pada relative path ke `src/`.
+---
 
-**File: `apps/server/api/index.ts`** — ganti seluruh isinya:
+## LANGKAH 1 — Auth Service
+
+### `services/auth/jwt.service.ts`
 
 ```typescript
-// Self-contained entry point — tidak bergantung pada ../src/app
-// Ini memastikan Vercel bisa resolve semua import dengan benar
+import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
-import { Elysia } from "elysia";
-import { cors } from "@elysiajs/cors";
-
-// Import routes dengan path eksplisit dari root
-import { authRoutes } from "../src/routes/auth.routes";
-import { usersRoutes } from "../src/routes/users.routes";
-import { teamsRoutes } from "../src/routes/teams.routes";
-import { issuesRoutes } from "../src/routes/issues.routes";
-import { triageRoutes } from "../src/routes/triage.routes";
-import { analyticsRoutes } from "../src/routes/analytics.routes";
-import { exportRoutes } from "../src/routes/export.routes";
-
-const allowedOrigins = (process.env.FRONTEND_URL ?? "https://task-amertarva.vercel.app")
-  .split(",")
-  .map((o) => o.trim());
-
-const app = new Elysia()
-  .use(
-    cors({
-      origin: allowedOrigins,
-      credentials: true,
-      allowedHeaders: ["Content-Type", "Authorization"],
-      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    }),
-  )
-  .get("/health", () => ({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    runtime:
-      typeof Bun !== "undefined" ? `bun ${Bun.version}` : process.version,
-  }))
-  .use(authRoutes)
-  .use(usersRoutes)
-  .use(teamsRoutes)
-  .use(issuesRoutes)
-  .use(triageRoutes)
-  .use(analyticsRoutes)
-  .use(exportRoutes)
-  .onError(({ code, error, set }) => {
-    if (code === "VALIDATION") {
-      set.status = 400;
-      return { error: "VALIDATION_ERROR", message: error.message };
-    }
-    if (code === "NOT_FOUND") {
-      set.status = 404;
-      return { error: "NOT_FOUND", message: "Endpoint tidak ditemukan" };
-    }
-    console.error("[global error]", code, error);
-    set.status = 500;
-    return { error: "INTERNAL_ERROR", message: "Terjadi kesalahan server" };
-  });
-
-export default app.handle;
-```
-
-Deploy ulang setelah perubahan ini:
-
-```bash
-vercel --prod
-```
-
----
-
-## Langkah 2 — Fix: Dependency Tidak Ter-install
-
-**Penyebab:** Package seperti `elysia`, `googleapis`, `jose` tidak ada di `node_modules`
-saat Vercel menjalankan function.
-
-**Cek:** Pastikan semua dependency ada di `dependencies` (bukan `devDependencies`) di `package.json`:
-
-```json
-{
-  "dependencies": {
-    "elysia": "latest",
-    "@elysiajs/cors": "latest",
-    "@supabase/supabase-js": "latest",
-    "googleapis": "latest",
-    "jose": "latest"
-  }
-}
-```
-
-**Dependency yang sering salah ditaruh di `devDependencies` dan menyebabkan crash di production:**
-
-- `elysia` → harus di `dependencies`
-- `@elysiajs/cors` → harus di `dependencies`
-- `jose` → harus di `dependencies`
-- `googleapis` → harus di `dependencies`
-
-Pindahkan semua yang dibutuhkan saat runtime ke `dependencies`, lalu deploy ulang.
-
----
-
-## Langkah 3 — Fix: `.listen()` Terpanggil di Vercel
-
-**Penyebab:** File `src/index.ts` ter-import (langsung atau tidak langsung) sehingga
-`app.listen()` terpanggil di environment Vercel yang tidak support ini.
-
-**Cek:** Pastikan `api/index.ts` **tidak** mengimport `src/index.ts`:
-
-```bash
-grep -rn "from.*index\|require.*index" apps/server/api/
-```
-
-Jika ada import ke `src/index.ts` → hapus dan ganti dengan import ke `src/app.ts`.
-
-**Juga cek** apakah `src/app.ts` ada baris `.listen()`:
-
-```bash
-grep -n "\.listen(" apps/server/src/app.ts
-```
-
-Output harus kosong. Jika ada → hapus baris tersebut dari `src/app.ts`.
-`.listen()` hanya boleh ada di `src/index.ts` (local dev only).
-
----
-
-## Langkah 4 — Fix: Environment Variables Belum Di-set
-
-**Penyebab:** Kode mengakses `process.env.SUPABASE_URL`, `process.env.JWT_SECRET`, dll.
-saat module di-load, tapi variabelnya tidak ada di Vercel → crash dengan undefined.
-
-**Cek di Vercel Dashboard:**
-
-```
-Project → Settings → Environment Variables
-```
-
-Pastikan semua variabel berikut ada dan nilainya benar:
-
-```
-SUPABASE_URL                 ← wajib ada
-SUPABASE_ANON_KEY            ← wajib ada
-SUPABASE_SERVICE_ROLE_KEY    ← wajib ada
-JWT_SECRET                   ← wajib ada (min 32 karakter)
-JWT_ACCESS_EXPIRES            ← wajib ada (contoh: 15m)
-JWT_REFRESH_EXPIRES           ← wajib ada (contoh: 7d)
-FRONTEND_URL                 ← wajib ada (URL frontend production)
-NODE_ENV                     ← set ke "production"
-```
-
-Jika pakai Google Docs export:
-
-```
-GOOGLE_SERVICE_ACCOUNT_EMAIL ← wajib ada
-GOOGLE_PRIVATE_KEY            ← wajib ada
-GOOGLE_PROJECT_ID             ← wajib ada
-```
-
-**Setelah menambahkan env vars → redeploy wajib:**
-
-```bash
-vercel --prod
-```
-
-**Fix defensif di `src/lib/supabase.ts`** — tambahkan validasi di awal:
-
-```typescript
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    `[supabase] Environment variables tidak lengkap.\n` +
-      `SUPABASE_URL: ${supabaseUrl ? "ada" : "TIDAK ADA"}\n` +
-      `SUPABASE_SERVICE_ROLE_KEY: ${supabaseKey ? "ada" : "TIDAK ADA"}`,
-  );
-}
-
-export const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
-```
-
-Ini akan menghasilkan pesan error yang jelas di log Vercel, bukan crash tanpa penjelasan.
-
----
-
-## Langkah 5 — Fix: Export Format Salah untuk Bun Runtime
-
-**Penyebab:** Vercel Bun runtime (public beta) mungkin butuh format export yang berbeda
-dari `export default app.handle`.
-
-**Coba format alternatif di `api/index.ts`:**
-
-**Opsi A** — Object dengan fetch property (format Bun server standard):
-
-```typescript
-import { app } from "../src/app";
-
-export default {
-  fetch: app.handle.bind(app),
-};
-```
-
-**Opsi B** — Named export fetch:
-
-```typescript
-import { app } from "../src/app";
-
-export const fetch = (request: Request) => app.handle(request);
-```
-
-**Opsi C** — Wrap explicit dengan try-catch untuk isolasi error:
-
-```typescript
-import { app } from "../src/app";
-
-export default async function handler(request: Request): Promise<Response> {
-  try {
-    return await app.handle(request);
-  } catch (err) {
-    console.error("[handler crash]", err);
-    return new Response(
-      JSON.stringify({ error: "HANDLER_CRASH", message: String(err) }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
-  }
-}
-```
-
-Coba satu per satu, deploy ulang setiap kali, cek log.
-
----
-
-## Langkah 6 — Fix: Module Crash Saat Import (Silent Crash)
-
-**Penyebab:** Salah satu file yang di-import mengeksekusi kode berbahaya saat module di-load
-— bukan di dalam function. Ini menyebabkan crash sebelum ada request masuk.
-
-**Contoh pola berbahaya:**
-
-```typescript
-// ❌ Ini dieksekusi saat module di-load — crash jika env var tidak ada
-const SECRET = process.env.JWT_SECRET!;
-const jwtKey = await importJWT(SECRET); // await di top-level bisa crash
-
-// ❌ Koneksi database dibuka saat module di-load
-const db = await connectDatabase();
-```
-
-**Fix:** Pindahkan semua inisialisasi ke dalam fungsi, bukan top-level:
-
-```typescript
-// ✅ Lazy init — hanya dieksekusi saat pertama kali dipanggil
-let _jwtKey: CryptoKey | null = null;
-async function getJwtKey(): Promise<CryptoKey> {
-  if (_jwtKey) return _jwtKey;
+const getSecret = () => {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_SECRET tidak ada di environment");
-  _jwtKey = await importJWT(secret);
-  return _jwtKey;
+  return new TextEncoder().encode(secret);
+};
+
+export interface TokenPayload extends JWTPayload {
+  sub: string;
+  email: string;
+  name: string;
+}
+
+export async function signAccessToken(
+  payload: Omit<TokenPayload, "iat" | "exp">,
+): Promise<string> {
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(process.env.JWT_ACCESS_EXPIRES ?? "15m")
+    .sign(getSecret());
+}
+
+export async function signRefreshToken(sub: string): Promise<string> {
+  return new SignJWT({ sub })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(process.env.JWT_REFRESH_EXPIRES ?? "7d")
+    .sign(getSecret());
+}
+
+export async function verifyToken(token: string): Promise<TokenPayload> {
+  const { payload } = await jwtVerify(token, getSecret());
+  return payload as TokenPayload;
 }
 ```
 
-**Cari semua top-level await di codebase:**
-
-```bash
-grep -rn "^const.*await\|^let.*await\|^var.*await" apps/server/src/ --include="*.ts"
-```
-
-Setiap hasil → pindahkan ke dalam fungsi.
-
----
-
-## Langkah 7 — Diagnosis dengan Endpoint Minimal
-
-Jika log masih tidak jelas, isolasi masalah dengan menyederhanakan `api/index.ts`
-jadi versi minimal yang tidak import apapun:
-
-**File: `apps/server/api/index.ts`** — ganti sementara dengan ini:
+### `services/auth/password.service.ts`
 
 ```typescript
-// VERSI DIAGNOSIS — tidak ada external import
-// Deploy ini dulu untuk memastikan Vercel bisa menjalankan Bun function
+// Pakai Bun.password jika available, fallback ke bcrypt
+export async function hashPassword(plain: string): Promise<string> {
+  if (typeof Bun !== "undefined") {
+    return Bun.password.hash(plain, { algorithm: "bcrypt", cost: 10 });
+  }
+  const { hash } = await import("bcrypt");
+  return hash(plain, 10);
+}
 
-export default async function handler(request: Request): Promise<Response> {
-  const url = new URL(request.url);
+export async function verifyPassword(
+  plain: string,
+  hashed: string,
+): Promise<boolean> {
+  if (typeof Bun !== "undefined") {
+    return Bun.password.verify(plain, hashed);
+  }
+  const { compare } = await import("bcrypt");
+  return compare(plain, hashed);
+}
+```
 
-  // Test environment variables
-  const envCheck = {
-    SUPABASE_URL: process.env.SUPABASE_URL ? "✓ ada" : "✗ tidak ada",
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY
-      ? "✓ ada"
-      : "✗ tidak ada",
-    JWT_SECRET: process.env.JWT_SECRET ? "✓ ada" : "✗ tidak ada",
-    FRONTEND_URL: process.env.FRONTEND_URL ?? "✗ tidak ada",
-    NODE_ENV: process.env.NODE_ENV ?? "tidak di-set",
-    runtime: typeof Bun !== "undefined" ? `bun ${Bun.version}` : "node",
-    path: url.pathname,
+### `services/auth/register.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+import { hashPassword } from "./password.service";
+import { signAccessToken, signRefreshToken } from "./jwt.service";
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export async function registerUser(payload: RegisterPayload) {
+  const { name, email, password } = payload;
+
+  // 1. Cek email sudah terdaftar
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (existing) {
+    const err = new Error("Email sudah terdaftar") as any;
+    err.statusCode = 409;
+    throw err;
+  }
+
+  // 2. Hash password
+  const hashedPassword = await hashPassword(password);
+
+  // 3. Insert ke auth.users via Supabase Admin
+  const { data: authUser, error: authError } =
+    await supabase.auth.admin.createUser({
+      email,
+      password: hashedPassword,
+      email_confirm: true,
+    });
+  if (authError) throw new Error(authError.message);
+
+  // 4. Insert ke profiles
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .insert({ id: authUser.user.id, name, email })
+    .select()
+    .maybeSingle();
+  if (profileError) throw new Error(profileError.message);
+
+  // 5. Generate tokens
+  const accessToken = await signAccessToken({ sub: profile!.id, email, name });
+  const refreshToken = await signRefreshToken(profile!.id);
+
+  // 6. Simpan refresh token
+  await supabase.from("refresh_tokens").insert({
+    user_id: profile!.id,
+    token: refreshToken,
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+
+  return { user: profile, accessToken, refreshToken };
+}
+```
+
+### `services/auth/login.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+import { verifyPassword } from "./password.service";
+import { signAccessToken, signRefreshToken } from "./jwt.service";
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export async function loginUser(payload: LoginPayload) {
+  const { email, password } = payload;
+
+  // 1. Cari user
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (error || !profile) {
+    const err = new Error("Email atau password salah") as any;
+    err.statusCode = 401;
+    throw err;
+  }
+
+  // 2. Verifikasi password
+  const valid = await verifyPassword(password, profile.password_hash);
+  if (!valid) {
+    const err = new Error("Email atau password salah") as any;
+    err.statusCode = 401;
+    throw err;
+  }
+
+  // 3. Generate tokens
+  const accessToken = await signAccessToken({
+    sub: profile.id,
+    email: profile.email,
+    name: profile.name,
+  });
+  const refreshToken = await signRefreshToken(profile.id);
+
+  // 4. Simpan refresh token
+  await supabase.from("refresh_tokens").insert({
+    user_id: profile.id,
+    token: refreshToken,
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+
+  const { password_hash: _, ...safeProfile } = profile;
+  return { user: safeProfile, accessToken, refreshToken };
+}
+```
+
+### `services/auth/refresh.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+import { verifyToken, signAccessToken, signRefreshToken } from "./jwt.service";
+
+export async function refreshTokens(oldRefreshToken: string) {
+  // 1. Verifikasi token tidak expired
+  const payload = await verifyToken(oldRefreshToken);
+
+  // 2. Cek token ada di DB dan belum direvoke
+  const { data: tokenRow, error } = await supabase
+    .from("refresh_tokens")
+    .select("*")
+    .eq("token", oldRefreshToken)
+    .eq("revoked", false)
+    .maybeSingle();
+
+  if (error || !tokenRow) {
+    const err = new Error(
+      "Refresh token tidak valid atau sudah direvoke",
+    ) as any;
+    err.statusCode = 401;
+    throw err;
+  }
+
+  // 3. Revoke token lama (rotation)
+  await supabase
+    .from("refresh_tokens")
+    .update({ revoked: true })
+    .eq("id", tokenRow.id);
+
+  // 4. Ambil data user
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, email, name")
+    .eq("id", payload.sub)
+    .maybeSingle();
+
+  if (!profile) {
+    const err = new Error("User tidak ditemukan") as any;
+    err.statusCode = 401;
+    throw err;
+  }
+
+  // 5. Generate tokens baru
+  const newAccessToken = await signAccessToken({
+    sub: profile.id,
+    email: profile.email,
+    name: profile.name,
+  });
+  const newRefreshToken = await signRefreshToken(profile.id);
+
+  // 6. Simpan refresh token baru
+  await supabase.from("refresh_tokens").insert({
+    user_id: profile.id,
+    token: newRefreshToken,
+    expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+  });
+
+  return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+}
+```
+
+### `services/auth/logout.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function logoutUser(refreshToken: string): Promise<void> {
+  await supabase
+    .from("refresh_tokens")
+    .update({ revoked: true })
+    .eq("token", refreshToken);
+}
+```
+
+### `services/auth.service.ts` — Barrel (tidak berubah dari sisi import routes)
+
+```typescript
+// Barrel file — routes hanya import dari sini, tidak perlu tahu internal structure
+
+export { registerUser } from "./auth/register.service";
+export { loginUser } from "./auth/login.service";
+export { refreshTokens } from "./auth/refresh.service";
+export { logoutUser } from "./auth/logout.service";
+export {
+  verifyToken,
+  signAccessToken,
+  signRefreshToken,
+} from "./auth/jwt.service";
+export { hashPassword, verifyPassword } from "./auth/password.service";
+```
+
+---
+
+## LANGKAH 2 — Issues Service
+
+### `services/issues/issues-query.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export interface IssueListParams {
+  status?: string;
+  priority?: string;
+  labels?: string;
+  assigneeId?: string;
+  search?: string;
+  sortBy?: string;
+  sortDir?: "asc" | "desc";
+  page?: number;
+  limit?: number;
+}
+
+const ISSUE_SELECT = `
+  *, reason, plan_info,
+  assignee:users!issues_assignee_id_fkey(id, name, avatar, initials),
+  created_by:users!issues_created_by_id_fkey(id, name, avatar, initials)
+`;
+
+export async function getTeamIdFromSlug(
+  teamSlug: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("teams")
+    .select("id")
+    .eq("slug", teamSlug)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+export async function listIssues(teamId: string, params: IssueListParams) {
+  let query = supabase
+    .from("issues")
+    .select(ISSUE_SELECT, { count: "exact" })
+    .eq("team_id", teamId)
+    .eq("is_triaged", true);
+
+  if (params.status) {
+    const statuses = params.status
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (statuses.length) query = query.in("status", statuses);
+  }
+  if (params.priority) {
+    const priorities = params.priority
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (priorities.length) query = query.in("priority", priorities);
+  }
+  if (params.search) query = query.ilike("title", `%${params.search}%`);
+  if (params.assigneeId) query = query.eq("assignee_id", params.assigneeId);
+
+  const sortBy = params.sortBy ?? "created_at";
+  const ascending = params.sortDir === "asc";
+  query = query.order(sortBy, { ascending });
+
+  const page = Math.max(1, params.page ?? 1);
+  const limit = Math.min(100, params.limit ?? 20);
+  query = query.range((page - 1) * limit, page * limit - 1);
+
+  const { data, error, count } = await query;
+  if (error) throw new Error(error.message);
+
+  return {
+    issues: data ?? [],
+    pagination: {
+      page,
+      limit,
+      total: count ?? 0,
+      totalPages: Math.ceil((count ?? 0) / limit),
+    },
   };
+}
 
-  console.log("[diagnosis]", JSON.stringify(envCheck, null, 2));
+export async function getIssueById(id: string) {
+  const { data, error } = await supabase
+    .from("issues")
+    .select(ISSUE_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+```
 
-  return new Response(JSON.stringify(envCheck, null, 2), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
+### `services/issues/issues-mutate.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export interface CreateIssuePayload {
+  title: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  labels?: string[];
+  assigneeId?: string;
+  parentIssueId?: string;
+  source?: string;
+  isTriaged?: boolean;
+  reason?: string;
+  planInfo?: string;
+}
+
+export async function createIssue(
+  teamId: string,
+  userId: string,
+  payload: CreateIssuePayload,
+) {
+  const { data, error } = await supabase
+    .from("issues")
+    .insert({
+      team_id: teamId,
+      created_by_id: userId,
+      title: payload.title,
+      description: payload.description ?? null,
+      status: payload.status ?? "backlog",
+      priority: payload.priority ?? "medium",
+      labels: payload.labels ?? [],
+      assignee_id: payload.assigneeId ?? null,
+      parent_issue_id: payload.parentIssueId ?? null,
+      source: payload.source ?? "manual",
+      is_triaged: payload.isTriaged ?? true,
+      reason: payload.reason ?? null,
+      plan_info: payload.planInfo ?? null,
+    })
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function updateIssue(
+  id: string,
+  payload: Partial<CreateIssuePayload>,
+) {
+  const updateData: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (payload.title !== undefined) updateData.title = payload.title;
+  if (payload.description !== undefined)
+    updateData.description = payload.description;
+  if (payload.status !== undefined) updateData.status = payload.status;
+  if (payload.priority !== undefined) updateData.priority = payload.priority;
+  if (payload.labels !== undefined) updateData.labels = payload.labels;
+  if (payload.assigneeId !== undefined)
+    updateData.assignee_id = payload.assigneeId;
+  if (payload.reason !== undefined) updateData.reason = payload.reason;
+  if (payload.planInfo !== undefined) updateData.plan_info = payload.planInfo;
+
+  const { data, error } = await supabase
+    .from("issues")
+    .update(updateData)
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function deleteIssue(id: string): Promise<void> {
+  const { error } = await supabase.from("issues").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+```
+
+### `services/issues.service.ts` — Barrel
+
+```typescript
+export {
+  listIssues,
+  getIssueById,
+  getTeamIdFromSlug,
+} from "./issues/issues-query.service";
+export {
+  createIssue,
+  updateIssue,
+  deleteIssue,
+} from "./issues/issues-mutate.service";
+export type {
+  IssueListParams,
+  CreateIssuePayload,
+} from "./issues/issues-query.service";
+```
+
+---
+
+## LANGKAH 3 — Teams Service
+
+### `services/teams/teams-query.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function listUserTeams(userId: string) {
+  const { data, error } = await supabase
+    .from("team_members")
+    .select("role, team:teams(id, name, slug, avatar)")
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    ...(row.team as any),
+    role: row.role,
+  }));
+}
+
+export async function getTeamBySlug(teamSlug: string, userId: string) {
+  const { data, error } = await supabase
+    .from("teams")
+    .select(
+      `
+      *, team_members!inner(user_id, role)
+    `,
+    )
+    .eq("slug", teamSlug)
+    .eq("team_members.user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function getTeamMembers(teamSlug: string) {
+  const { data, error } = await supabase
+    .from("team_members")
+    .select(
+      `
+      role, joined_at,
+      user:profiles(id, name, email, avatar, initials)
+    `,
+    )
+    .eq("team:teams.slug", teamSlug);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function getTeamSettings(teamSlug: string) {
+  const { data, error } = await supabase
+    .from("teams")
+    .select("*")
+    .eq("slug", teamSlug)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+```
+
+### `services/teams/teams-mutate.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export interface CreateTeamPayload {
+  name: string;
+  slug: string;
+  type?: "konstruksi" | "it" | "tugas";
+}
+
+export async function createTeam(userId: string, payload: CreateTeamPayload) {
+  const { data: team, error: teamError } = await supabase
+    .from("teams")
+    .insert({
+      name: payload.name,
+      slug: payload.slug.toUpperCase(),
+      type: payload.type ?? "tugas",
+    })
+    .select()
+    .maybeSingle();
+  if (teamError) throw new Error(teamError.message);
+
+  // Creator jadi PM
+  const { error: memberError } = await supabase
+    .from("team_members")
+    .insert({ team_id: team!.id, user_id: userId, role: "pm" });
+  if (memberError) throw new Error(memberError.message);
+
+  return team;
+}
+
+export async function updateTeamSettings(
+  teamSlug: string,
+  payload: Record<string, unknown>,
+) {
+  const mapped: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+  if (payload.name) mapped.name = payload.name;
+  if (payload.type) mapped.type = payload.type;
+  if (payload.startDate) mapped.start_date = payload.startDate;
+  if (payload.endDate) mapped.end_date = payload.endDate;
+  if (payload.company) mapped.company = payload.company;
+  if (payload.workArea) mapped.work_area = payload.workArea;
+  if (payload.description) mapped.description = payload.description;
+  if (payload.integrations) {
+    const intg = payload.integrations as any;
+    if (intg.githubRepo) mapped.github_repo = intg.githubRepo;
+    if (intg.googleDocsUrl) mapped.google_docs_url = intg.googleDocsUrl;
+  }
+
+  const { data, error } = await supabase
+    .from("teams")
+    .update(mapped)
+    .eq("slug", teamSlug)
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+```
+
+### `services/teams/teams-access.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function isTeamMember(
+  teamSlug: string,
+  userId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("team_members")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("team:teams.slug", teamSlug)
+    .maybeSingle();
+  return !!data;
+}
+
+export async function getMemberRole(
+  teamSlug: string,
+  userId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("team_members")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("team:teams.slug", teamSlug)
+    .maybeSingle();
+  return data?.role ?? null;
+}
+```
+
+### `services/teams.service.ts` — Barrel
+
+```typescript
+export {
+  listUserTeams,
+  getTeamBySlug,
+  getTeamMembers,
+  getTeamSettings,
+} from "./teams/teams-query.service";
+export { createTeam, updateTeamSettings } from "./teams/teams-mutate.service";
+export { isTeamMember, getMemberRole } from "./teams/teams-access.service";
+```
+
+---
+
+## LANGKAH 4 — Triage Service
+
+### `services/triage/triage-query.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function listUntriagedIssues(teamSlug: string) {
+  const { data: team } = await supabase
+    .from("teams")
+    .select("id")
+    .eq("slug", teamSlug)
+    .maybeSingle();
+  if (!team) return { issues: [], total: 0 };
+
+  const { data, error, count } = await supabase
+    .from("issues")
+    .select(`*, assignee:users!issues_assignee_id_fkey(id, name, initials)`, {
+      count: "exact",
+    })
+    .eq("team_id", team.id)
+    .eq("is_triaged", false)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  return { issues: data ?? [], total: count ?? 0 };
+}
+```
+
+### `services/triage/triage-accept.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function acceptIssue(
+  issueId: string,
+  payload: { priority?: string; assigneeId?: string; labels?: string[] },
+) {
+  const update: Record<string, unknown> = {
+    is_triaged: true,
+    status: "backlog",
+    updated_at: new Date().toISOString(),
+  };
+  if (payload.priority) update.priority = payload.priority;
+  if (payload.assigneeId) update.assignee_id = payload.assigneeId;
+  if (payload.labels) update.labels = payload.labels;
+
+  const { data, error } = await supabase
+    .from("issues")
+    .update(update)
+    .eq("id", issueId)
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Issue tidak ditemukan");
+  return data;
+}
+```
+
+### `services/triage/triage-decline.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function declineIssue(issueId: string, reason?: string) {
+  const { data, error } = await supabase
+    .from("issues")
+    .update({
+      is_triaged: true,
+      status: "cancelled",
+      reason: reason ?? null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", issueId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Issue tidak ditemukan");
+  return { message: "Issue ditolak", issueId: data.id };
+}
+```
+
+### `services/triage.service.ts` — Barrel
+
+```typescript
+export { listUntriagedIssues } from "./triage/triage-query.service";
+export { acceptIssue } from "./triage/triage-accept.service";
+export { declineIssue } from "./triage/triage-decline.service";
+```
+
+---
+
+## LANGKAH 5 — Analytics Service
+
+### `services/analytics/analytics-summary.service.ts`
+
+```typescript
+export function calcSummary(issues: any[]) {
+  return {
+    totalIssues: issues.length,
+    openIssues: issues.filter((i) => !["done", "cancelled"].includes(i.status))
+      .length,
+    inProgress: issues.filter((i) => i.status === "in_progress").length,
+    completed: issues.filter((i) => i.status === "done").length,
+    cancelled: issues.filter((i) => i.status === "cancelled").length,
+  };
+}
+
+export function calcByStatus(issues: any[]) {
+  const map = new Map<string, number>();
+  for (const i of issues) map.set(i.status, (map.get(i.status) ?? 0) + 1);
+  return Array.from(map.entries()).map(([status, count]) => ({
+    status,
+    count,
+  }));
+}
+
+export function calcByPriority(issues: any[]) {
+  const map = new Map<string, number>();
+  for (const i of issues) map.set(i.priority, (map.get(i.priority) ?? 0) + 1);
+  return Array.from(map.entries()).map(([priority, count]) => ({
+    priority,
+    count,
+  }));
+}
+```
+
+### `services/analytics/analytics-breakdown.service.ts`
+
+```typescript
+export function calcByAssignee(issues: any[]) {
+  const map = new Map<
+    string,
+    { name: string; initials: string; avatar?: string; count: number }
+  >();
+  for (const issue of issues) {
+    if (!issue.assignee_id || !issue.assignee) continue;
+    const a = issue.assignee as any;
+    const existing = map.get(issue.assignee_id);
+    if (existing) existing.count++;
+    else
+      map.set(issue.assignee_id, {
+        name: a.name,
+        initials: a.initials,
+        avatar: a.avatar,
+        count: 1,
+      });
+  }
+  return Array.from(map.entries()).map(([userId, d]) => ({ userId, ...d }));
+}
+```
+
+### `services/analytics/analytics-trend.service.ts`
+
+```typescript
+export function calcCompletionTrend(issues: any[]) {
+  const map = new Map<string, { completed: number; created: number }>();
+  for (const issue of issues) {
+    const created = issue.created_at.slice(0, 10);
+    if (!map.has(created)) map.set(created, { completed: 0, created: 0 });
+    map.get(created)!.created++;
+    if (issue.status === "done") {
+      const done = issue.updated_at.slice(0, 10);
+      if (!map.has(done)) map.set(done, { completed: 0, created: 0 });
+      map.get(done)!.completed++;
+    }
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, counts]) => ({ date, ...counts }));
+}
+```
+
+### `services/analytics.service.ts` — Barrel
+
+```typescript
+import { supabase } from "../lib/supabase";
+import {
+  calcSummary,
+  calcByStatus,
+  calcByPriority,
+} from "./analytics/analytics-summary.service";
+import { calcByAssignee } from "./analytics/analytics-breakdown.service";
+import { calcCompletionTrend } from "./analytics/analytics-trend.service";
+
+export async function getTeamAnalytics(
+  teamSlug: string,
+  params: { from?: string; to?: string } = {},
+) {
+  const { data: team } = await supabase
+    .from("teams")
+    .select("id, name")
+    .eq("slug", teamSlug)
+    .maybeSingle();
+  if (!team) throw new Error(`Team '${teamSlug}' tidak ditemukan`);
+
+  const toDate = params.to ? new Date(params.to) : new Date();
+  const fromDate = params.from
+    ? new Date(params.from)
+    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const { data: issues, error } = await supabase
+    .from("issues")
+    .select(
+      "id, status, priority, created_at, updated_at, assignee_id, assignee:users!issues_assignee_id_fkey(id, name, initials, avatar)",
+    )
+    .eq("team_id", team.id)
+    .gte("created_at", fromDate.toISOString())
+    .lte("created_at", toDate.toISOString());
+  if (error) throw new Error(error.message);
+
+  const all = issues ?? [];
+  return {
+    summary: calcSummary(all),
+    byStatus: calcByStatus(all),
+    byPriority: calcByPriority(all),
+    byAssignee: calcByAssignee(all),
+    completionTrend: calcCompletionTrend(all),
+  };
+}
+```
+
+---
+
+## LANGKAH 6 — Users Service
+
+### `services/users/users-profile.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function getUserById(userId: string) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(
+      `
+      id, name, email, avatar, initials,
+      team_members(role, team:teams(id, name, slug, avatar))
+    `,
+    )
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function updateUserProfile(
+  userId: string,
+  payload: { name?: string; avatar?: string },
+) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({ ...payload, updated_at: new Date().toISOString() })
+    .eq("id", userId)
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+```
+
+### `services/users/users-activity.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function getUserActivity(userId: string) {
+  const since = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabase
+    .from("issues")
+    .select("created_at")
+    .eq("created_by_id", userId)
+    .gte("created_at", since)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const countMap = new Map<string, number>();
+  for (const row of data ?? []) {
+    const date = (row.created_at as string).slice(0, 10);
+    countMap.set(date, (countMap.get(date) ?? 0) + 1);
+  }
+
+  const activities = Array.from(countMap.entries()).map(([date, count]) => ({
+    date,
+    count,
+  }));
+  const thirtyAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const totalLast30Days = activities
+    .filter((a) => new Date(a.date) >= thirtyAgo)
+    .reduce((s, a) => s + a.count, 0);
+
+  const totalAll = activities.reduce((s, a) => s + a.count, 0);
+  const dailyAverage = Math.round((totalAll / 365) * 10) / 10;
+
+  let currentStreak = 0;
+  const today = new Date();
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    if (countMap.has(d.toISOString().slice(0, 10))) currentStreak++;
+    else break;
+  }
+
+  return {
+    activities,
+    stats: { totalLast30Days, currentStreak, dailyAverage },
+  };
+}
+```
+
+### `services/users.service.ts` — Barrel
+
+```typescript
+export { getUserById, updateUserProfile } from "./users/users-profile.service";
+export { getUserActivity } from "./users/users-activity.service";
+```
+
+---
+
+## LANGKAH 7 — Notifications Service
+
+### `services/notifications/notifications-query.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function listNotifications(
+  userId: string,
+  params: { unread?: boolean; page?: number; limit?: number } = {},
+) {
+  const page = Math.max(1, params.page ?? 1);
+  const limit = Math.min(50, params.limit ?? 20);
+
+  let query = supabase
+    .from("notifications")
+    .select("*", { count: "exact" })
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .range((page - 1) * limit, page * limit - 1);
+
+  if (params.unread) query = query.eq("is_read", false);
+
+  const { data, error, count } = await query;
+  if (error) throw new Error(error.message);
+
+  const { count: unreadCount } = await supabase
+    .from("notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("is_read", false);
+
+  return {
+    notifications: data ?? [],
+    unreadCount: unreadCount ?? 0,
+    pagination: {
+      page,
+      limit,
+      total: count ?? 0,
+      totalPages: Math.ceil((count ?? 0) / limit),
+    },
+  };
+}
+```
+
+### `services/notifications/notifications-mutate.service.ts`
+
+```typescript
+import { supabase } from "../../lib/supabase";
+
+export async function markNotificationRead(
+  id: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", id)
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("user_id", userId)
+    .eq("is_read", false);
+  if (error) throw new Error(error.message);
+}
+
+export async function createNotification(payload: {
+  userId: string;
+  type: string;
+  title: string;
+  body?: string;
+  issueId?: string;
+  teamId?: string;
+}): Promise<void> {
+  const { error } = await supabase.from("notifications").insert({
+    user_id: payload.userId,
+    type: payload.type,
+    title: payload.title,
+    body: payload.body ?? null,
+    issue_id: payload.issueId ?? null,
+    team_id: payload.teamId ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+```
+
+### `services/notifications.service.ts` — Barrel
+
+```typescript
+export { listNotifications } from "./notifications/notifications-query.service";
+export {
+  markNotificationRead,
+  markAllNotificationsRead,
+  createNotification,
+} from "./notifications/notifications-mutate.service";
+```
+
+---
+
+## LANGKAH 8 — Google Docs Service
+
+Pecah `google-docs.service.ts` (yang terpanjang) menjadi 4 file:
+
+### `services/google-docs/google-docs-auth.service.ts`
+
+```typescript
+import { google } from "googleapis";
+
+export function getGoogleAuth() {
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (!privateKey || !process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+    throw new Error("Google Service Account credentials tidak ada di .env");
+  }
+  return new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: privateKey,
+      project_id: process.env.GOOGLE_PROJECT_ID,
+    },
+    scopes: ["https://www.googleapis.com/auth/documents"],
   });
 }
-```
 
-Deploy dan akses `https://api-amertask.vercel.app/health`:
-
-- Jika **muncul JSON** → Vercel bisa jalankan Bun function, masalah ada di import kode asli
-- Jika **masih crash** → masalah di level Vercel config atau Bun runtime itu sendiri
-
-Setelah diagnosis selesai, kembalikan ke implementasi asli.
-
----
-
-## Langkah 8 — Fix `vercel.json` Jika Rewrites Bermasalah
-
-Jika endpoint minimal di Langkah 7 berhasil tapi routing tidak benar,
-coba perbaiki `vercel.json`:
-
-```json
-{
-  "bunVersion": "1.x",
-  "functions": {
-    "api/index.ts": {
-      "maxDuration": 30
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/health",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/auth/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/users/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/teams/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/issues/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/triage/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/api/index"
-    }
-  ]
+export function extractDocumentId(url: string): string | null {
+  const match = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+  return match ? match[1] : null;
 }
 ```
 
-Atau versi sederhana jika wildcard `(.*)` bermasalah:
+### `services/google-docs/google-docs-format.service.ts`
 
-```json
-{
-  "bunVersion": "1.x",
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/api/index"
-    }
-  ]
-}
-```
+Semua fungsi `formatPlanningContent`, `formatBacklogContent`, `formatExecutionContent`
+dipindahkan ke sini apa adanya.
 
-> **Catatan:** `routes` adalah format lama Vercel tapi lebih compatible.
-> Coba ini jika `rewrites` tidak bekerja.
+### `services/google-docs/google-docs-table.service.ts`
 
----
+Semua fungsi `buildHeaderStyleRequests`, `buildRowColorRequests`,
+`buildFillCellRequests`, `buildColumnWidthRequests`, `buildHeadingRequests`,
+`extractTableCells`, `findMarkers` dipindahkan ke sini.
 
-## Urutan Eksekusi Rekomendasi
+### `services/google-docs/google-docs-write.service.ts`
 
-Jika belum tahu penyebabnya, ikuti urutan ini:
+Fungsi `writeSectionToDoc` dan `appendSubSection` dipindahkan ke sini.
 
-```
-1. Baca log Vercel → cocokkan dengan tabel di atas
-2. Jika log kosong → deploy Langkah 7 (endpoint minimal)
-3. Jika env vars → Langkah 4
-4. Jika module import error → Langkah 1 atau 2
-5. Jika export format → Langkah 5
-6. Jika masih crash setelah semua → Langkah 6 (top-level await)
+### `services/google-docs.service.ts` — Barrel
+
+```typescript
+export { extractDocumentId } from "./google-docs/google-docs-auth.service";
+export { googleDocsService } from "./google-docs/google-docs-write.service";
 ```
 
 ---
 
-## Verifikasi Setelah Fix
+## LANGKAH 9 — Verifikasi Setelah Refactor
 
 ```bash
-# Endpoint yang harus return 200 setelah fix
-curl https://api-amertask.vercel.app/health
-# Expected: { "status": "ok", "runtime": "bun x.x.x", ... }
+# 1. TypeScript check — harus 0 error
+cd apps/server && bun run tsc --noEmit
 
-# Jika masih 500, lihat log lagi
-vercel logs https://api-amertask.vercel.app --follow
+# 2. Pastikan barrel files sudah re-export semua yang dibutuhkan routes
+grep -rn "from.*services/auth" apps/server/src/routes/
+grep -rn "from.*services/issues" apps/server/src/routes/
+grep -rn "from.*services/teams" apps/server/src/routes/
+
+# 3. Jalankan dev server
+bun run dev
+
+# 4. Test endpoint
+curl http://localhost:3000/health
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@test.com","password":"test"}'
 ```
 
 ---
 
-## File yang Mungkin Diubah
+## Aturan yang Harus Dipertahankan
 
-| File                              | Kapan diubah                           |
-| --------------------------------- | -------------------------------------- |
-| `apps/server/api/index.ts`        | Langkah 1, 5, 6, 7                     |
-| `apps/server/src/app.ts`          | Langkah 3 (hapus `.listen()` jika ada) |
-| `apps/server/src/lib/supabase.ts` | Langkah 4 (tambah validasi env)        |
-| `apps/server/src/lib/jwt.ts`      | Langkah 6 (pindah top-level await)     |
-| `apps/server/package.json`        | Langkah 2 (pindah dep ke dependencies) |
-| `apps/server/vercel.json`         | Langkah 8 (perbaiki routing)           |
+```
+✅ Routes hanya import dari barrel (auth.service.ts, bukan auth/login.service.ts)
+✅ Setiap sub-file punya satu tanggung jawab
+✅ Mapper/format functions = pure functions, tidak ada Supabase call
+✅ Barrel file tidak mengandung business logic — hanya re-export
+✅ Jika satu sub-file melebihi 150 baris → pecah lagi
+```
 
 ---
 
-_Fix: FUNCTION_INVOCATION_FAILED — api-amertask.vercel.app | April 2026_
+## Ringkasan File yang Dibuat
+
+| Folder           | File Baru | Dari Baris ke Baris              |
+| ---------------- | --------- | -------------------------------- |
+| `auth/`          | 6 file    | auth.service.ts dipecah          |
+| `issues/`        | 2 file    | issues.service.ts dipecah        |
+| `teams/`         | 3 file    | teams.service.ts dipecah         |
+| `triage/`        | 3 file    | triage.service.ts dipecah        |
+| `analytics/`     | 3 file    | analytics.service.ts dipecah     |
+| `users/`         | 2 file    | users.service.ts dipecah         |
+| `notifications/` | 2 file    | notifications.service.ts dipecah |
+| `google-docs/`   | 4 file    | google-docs.service.ts dipecah   |
+| **Barrel**       | 8 file    | Tidak berubah dari sisi routes   |
+
+**Routes tidak berubah sama sekali** — semua import tetap dari barrel file.
+
+---
+
+_Refactor: Service Decomposition — Amertask Backend | April 2026_

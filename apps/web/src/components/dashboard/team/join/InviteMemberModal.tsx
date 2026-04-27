@@ -16,14 +16,10 @@ import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/store/useThemeStore";
-
-type TeamInviteRole = "admin" | "member" | "pm";
-
-interface InviteMemberModalProps {
-  isOpen: boolean;
-  teamSlug: string;
-  onClose: () => void;
-}
+import {
+  type TeamInviteRole,
+  type InviteMemberModalProps,
+} from "@/types/components/InviteMemberModalProps";
 
 const EXPIRY_OPTIONS = [
   { value: 24, label: "24 jam" },
