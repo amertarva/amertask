@@ -82,13 +82,14 @@ export function OnboardingHome() {
             className="text-2xl sm:text-3xl font-extrabold text-text tracking-tight animate-fade-in break-words"
             style={{ animationDelay: "0.1s" }}
           >
-            Selamat datang, <span className="text-primary">{user.name}</span> 👋
+            Selamat datang, <span className="text-primary">{user.name}</span>
           </h1>
           <p
             className="text-sm sm:text-base text-text-muted mt-2 font-medium flex items-center gap-2 animate-fade-in"
             style={{ animationDelay: "0.2s" }}
           >
-            <Calendar className="w-4 h-4 shrink-0" /> <span className="truncate">{today}</span>
+            <Calendar className="w-4 h-4 shrink-0" />{" "}
+            <span className="truncate">{today}</span>
           </p>
         </div>
       </section>
@@ -352,10 +353,7 @@ export function OnboardingHome() {
                   ) : (
                     <div className="flex gap-0.75">
                       {Array.from({ length: 52 }).map((_, weekIndex) => (
-                        <div
-                          key={weekIndex}
-                          className="flex flex-col gap-0.75"
-                        >
+                        <div key={weekIndex} className="flex flex-col gap-0.75">
                           {Array.from({ length: 7 }).map((_, dayIndex) => {
                             const d = new Date();
                             d.setDate(
