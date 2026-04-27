@@ -56,28 +56,14 @@ export const schedulingRoutes = new Elysia({ prefix: "/teams/:teamSlug" })
     }
 
     try {
-      // STRATEGI BARU: Ambil dari issue_planning yang sudah linked ke issues
+      // STRATEGI: Ambil dari issue_planning yang sudah linked ke issues
       // Status backlog di issues TIDAK mempengaruhi tampilan graph/gantt
       // Selama ada di issue_planning dengan issue_id, maka akan ditampilkan
+
+      // 1. Get all planning data yang sudah linked ke issues
       const { data: planningData, error: planningError } = await supabase
         .from("issue_planning")
-        .select(
-          `
-          issue_id,
-          start_date,
-          due_date,
-          estimated_hours,
-          issues:issue_id (
-            id,
-            number,
-            title,
-            status,
-            priority,
-            team_id,
-            assignee:users!issues_assignee_id_fkey(name, initials, avatar)
-          )
-        `,
-        )
+        .select("issue_id, start_date, due_date, estimated_hours")
         .not("issue_id", "is", null);
 
       console.log("[Graph] Planning query result:", {
@@ -89,20 +75,56 @@ export const schedulingRoutes = new Elysia({ prefix: "/teams/:teamSlug" })
         throw new Error(planningError.message);
       }
 
-      // Filter hanya yang team_id sesuai dan flatten structure
-      const nodes = (planningData ?? [])
-        .filter((p: any) => p.issues?.team_id === team.id)
-        .map((p: any) => ({
-          id: p.issues.id,
-          number: p.issues.number,
-          title: p.issues.title,
-          status: p.issues.status,
-          priority: p.issues.priority,
-          assignee: p.issues.assignee,
-          start_date: p.start_date,
-          due_date: p.due_date,
-          estimated_hours: p.estimated_hours ?? 0,
-        }));
+      if (!planningData || planningData.length === 0) {
+        return { nodes: [], edges: [] };
+      }
+
+      // 2. Get issue details untuk planning yang ada
+      const issueIds = (planningData as any[]).map((p) => p.issue_id);
+      const { data: issuesData, error: issuesError } = await supabase
+        .from("issues")
+        .select(
+          `
+          id,
+          number,
+          title,
+          status,
+          priority,
+          team_id,
+          assignee:users!issues_assignee_id_fkey(name, initials, avatar)
+        `,
+        )
+        .in("id", issueIds)
+        .eq("team_id", team.id);
+
+      console.log("[Graph] Issues query result:", {
+        count: issuesData?.length ?? 0,
+        error: issuesError,
+      });
+
+      if (issuesError) {
+        throw new Error(issuesError.message);
+      }
+
+      // 3. Combine planning data dengan issue data
+      const planningMap = new Map(
+        (planningData as any[]).map((p) => [p.issue_id, p]),
+      );
+
+      const nodes = (issuesData ?? []).map((issue: any) => {
+        const planning = planningMap.get(issue.id);
+        return {
+          id: issue.id,
+          number: issue.number,
+          title: issue.title,
+          status: issue.status,
+          priority: issue.priority,
+          assignee: issue.assignee,
+          start_date: planning?.start_date ?? null,
+          due_date: planning?.due_date ?? null,
+          estimated_hours: planning?.estimated_hours ?? 0,
+        };
+      });
 
       console.log("[Graph] Final nodes:", nodes.length);
 
@@ -110,11 +132,11 @@ export const schedulingRoutes = new Elysia({ prefix: "/teams/:teamSlug" })
         return { nodes: [], edges: [] };
       }
 
-      const issueIds = nodes.map((n: any) => n.id);
+      const finalIssueIds = nodes.map((n: any) => n.id);
       const { data: deps } = await supabase
         .from("issue_dependencies")
         .select("issue_id, depends_on, type, lag_days")
-        .in("issue_id", issueIds);
+        .in("issue_id", finalIssueIds);
 
       console.log("[Graph] Dependencies:", deps?.length ?? 0);
 
