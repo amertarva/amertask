@@ -9,6 +9,7 @@ import { PromoteConfirmModal } from "@/components/modals/PromoteConfirmModal";
 import { useTeamMembers } from "@/hooks/useTeams";
 import { useParams } from "next/navigation";
 import { Skeleton } from "@/components/ui";
+import Swal from "sweetalert2";
 import {
   standalonePlanningApi,
   type StandalonePlanning,
@@ -120,20 +121,41 @@ export function PlanningContainer() {
     const item = plannings.find((p) => p.id === id);
     if (!item) return;
 
-    if (!confirm("Yakin ingin menghapus planning ini?")) {
+    const result = await Swal.fire({
+      title: "Hapus Planning?",
+      text: `Anda yakin ingin menghapus "${item.featureName}"? Aksi ini tidak dapat dibatalkan.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Ya, Hapus!",
+      cancelButtonText: "Batal",
+    });
+
+    if (!result.isConfirmed) {
       return;
     }
 
     try {
       await standalonePlanningApi.deletePlanning(teamSlug, item.planningId);
       setPlannings((prev) => prev.filter((p) => p.id !== id));
+      Swal.fire({
+        title: "Terhapus!",
+        text: "Planning berhasil dihapus.",
+        icon: "success",
+        timer: 1500,
+        showConfirmButton: false,
+      });
     } catch (error) {
       console.error("Error deleting planning:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Gagal menghapus planning. Silakan coba lagi.",
-      );
+      Swal.fire({
+        title: "Gagal!",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Gagal menghapus planning. Silakan coba lagi.",
+        icon: "error",
+      });
     }
   };
 
@@ -260,13 +282,26 @@ export function PlanningContainer() {
         assigneeId: "",
         priority: "medium",
       });
+
+      Swal.fire({
+        title: isCreating ? "Berhasil Dibuat" : "Berhasil Diperbarui",
+        icon: "success",
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
     } catch (error) {
       console.error("Error saving planning:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Gagal menyimpan data. Silakan coba lagi.",
-      );
+      Swal.fire({
+        title: "Gagal Menyimpan",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Gagal menyimpan data. Silakan coba lagi.",
+        icon: "error",
+      });
     }
   };
 
