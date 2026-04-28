@@ -5,6 +5,7 @@ import { PlanningHeader } from "@/components/header/PlanningHeader";
 import { PlanningGoal } from "./PlanningGoal";
 import { PlanningTable } from "@/components/tables/PlanningTable";
 import { PlanningModal } from "@/components/modals/PlanningModal";
+import { PromoteConfirmModal } from "@/components/modals/PromoteConfirmModal";
 import { useTeamMembers } from "@/hooks/useTeams";
 import { useParams } from "next/navigation";
 import { Skeleton } from "@/components/ui";
@@ -26,6 +27,9 @@ export function PlanningContainer() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<PlanningUIItem | null>(null);
+  const [promotingItem, setPromotingItem] = useState<PlanningUIItem | null>(
+    null,
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [nextPlanningNumber, setNextPlanningNumber] = useState<number>(1);
   const [editForm, setEditForm] = useState<EditForm>({
@@ -133,38 +137,37 @@ export function PlanningContainer() {
     }
   };
 
-  const handlePromote = async (item: PlanningItem) => {
-    // Convert PlanningItem to PlanningUIItem for promotion
+  const handlePromoteClick = (item: PlanningItem) => {
     const uiItem = plannings.find((p) => p.id === item.id);
-    if (!uiItem) return;
-
-    if (
-      !confirm(
-        `Mulai eksekusi "${uiItem.featureName}"?\n\nPlanning akan dipindahkan ke Execution dan tidak bisa diubah lagi.`,
-      )
-    ) {
-      return;
+    if (uiItem) {
+      setPromotingItem(uiItem);
     }
+  };
 
+  const handlePromoteConfirm = async (
+    item: PlanningUIItem,
+  ): Promise<{ success: boolean; message: string; issueNumber?: number }> => {
     try {
       const result = await standalonePlanningApi.promotePlanningToExecution(
         teamSlug,
-        uiItem.planningId,
+        item.planningId,
       );
 
       // Update status planning menjadi "In Execution" tanpa menghapus dari list
       setPlannings((prev) =>
         prev.map((p) =>
-          p.id === uiItem.id ? { ...p, status: "In Execution" } : p,
+          p.id === item.id ? { ...p, status: "In Execution" } : p,
         ),
       );
 
-      alert(
-        `✅ ${result.message}\n\nIssue ${teamSlug.toUpperCase()}-${result.issue.number} berhasil dibuat!\n\nPlanning tetap terlihat di tab Planning dengan status "Dipromote".\nLihat progress di tab Execution.`,
-      );
+      return {
+        success: true,
+        message: result.message,
+        issueNumber: result.issue?.number,
+      };
     } catch (error) {
       console.error("Error promoting planning:", error);
-      alert(
+      throw new Error(
         error instanceof Error
           ? error.message
           : "Gagal promote planning ke execution. Silakan coba lagi.",
@@ -313,7 +316,7 @@ export function PlanningContainer() {
         </div>
         <div className="p-4 sm:p-6 lg:p-8 flex flex-col space-y-6">
           <Skeleton className="h-24 w-full rounded-2xl bg-muted/60" />
-          <Skeleton className="h-[400px] w-full rounded-2xl bg-muted/60" />
+          <Skeleton className="h-100 w-full rounded-2xl bg-muted/60" />
         </div>
       </div>
     );
@@ -353,9 +356,17 @@ export function PlanningContainer() {
           teamSlug={teamSlug}
           onEdit={openEditModal}
           onDelete={handleDelete}
-          onPromote={handlePromote}
+          onPromote={handlePromoteClick}
         />
       </div>
+
+      <PromoteConfirmModal
+        isOpen={!!promotingItem}
+        onClose={() => setPromotingItem(null)}
+        item={promotingItem}
+        onConfirm={handlePromoteConfirm}
+        teamSlug={teamSlug}
+      />
 
       <PlanningModal
         mounted={mounted}

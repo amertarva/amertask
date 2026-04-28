@@ -6,12 +6,10 @@ import {
   Play,
   Calendar,
   Clock,
-  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { Dropdown } from "@/components/ui/Dropdown";
 import { format, differenceInDays } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import type { IssueStatus } from "@/types";
@@ -236,34 +234,33 @@ export function PlanningTable({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex justify-end relative z-10 w-full">
-                      <Dropdown
-                        align="right"
-                        trigger={
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-text-muted hover:text-text">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        }
-                        items={[
-                          {
-                            label: "Mulai Eksekusi",
-                            icon: <Play className="w-4 h-4" />,
-                            onClick: () => onPromote(item),
-                          },
-                          {
-                            label: "Edit",
-                            icon: <Edit2 className="w-4 h-4" />,
-                            onClick: () => onEdit(item),
-                          },
-                          { divider: true },
-                          {
-                            label: "Hapus",
-                            icon: <Trash2 className="w-4 h-4" />,
-                            danger: true,
-                            onClick: () => onDelete(item.id),
-                          },
-                        ]}
-                      />
+                    <div className="flex flex-col gap-2 relative z-10 w-full">
+                      <Button
+                        size="sm"
+                        onClick={() => onPromote(item)}
+                        className="w-full bg-primary hover:bg-primary-hover text-primary-foreground opacity-100 shadow-sm"
+                        leftIcon={<Play className="fill-current w-3.5 h-3.5" />}
+                      >
+                        Eksekusi
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => onEdit(item)}
+                        className="w-full bg-secondary hover:bg-secondary-hover text-secondary-foreground opacity-100 shadow-sm"
+                        leftIcon={<Edit2 className="w-3.5 h-3.5" />}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => onDelete(item.id)}
+                        className="w-full bg-priority-urgent/10 hover:bg-priority-urgent/20 text-priority-urgent opacity-100 shadow-sm border border-priority-urgent/20"
+                        leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                      >
+                        Hapus
+                      </Button>
                     </div>
                   )}
                 </td>

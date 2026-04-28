@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, MoveRight } from "lucide-react";
+import { MoveRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import DashboardPreviewSection from "@/components/home/preview/DashboardPreviewSection";
 import MobileDashboardPreview from "@/components/home/mobile/MobileDashboardPreview";
@@ -77,7 +77,7 @@ export default function HeroSection() {
             <Link href="/auth/login" className="w-full sm:w-auto">
               <Button
                 size="lg"
-                className="group w-full rounded-2xl !bg-[#e9c46a] dark:!bg-[#F4D35E] hover:!bg-[#e9c46a] dark:hover:!bg-[#F4D35E] hover:brightness-95 px-8 py-7 text-xl font-medium !text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border-none"
+                className="group w-full rounded-2xl bg-[#e9c46a]! dark:bg-[#F4D35E]! hover:bg-[#e9c46a]! dark:hover:bg-[#F4D35E]! hover:brightness-95 px-8 py-7 text-xl font-medium text-white! shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl border-none"
                 rightIcon={
                   <MoveRight className="w-7 h-7 ml-2 transition-transform duration-300 group-hover:translate-x-2" strokeWidth={2.5} />
                 }
