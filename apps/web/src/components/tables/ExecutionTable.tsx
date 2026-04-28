@@ -7,10 +7,13 @@ import {
   AlertCircle,
   Ban,
   Trash2,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { format, differenceInDays } from "date-fns";
+import { id as localeId } from "date-fns/locale";
 
 export function ExecutionTable({
   executions,
@@ -42,6 +45,53 @@ export function ExecutionTable({
       default:
         return "todo";
     }
+  };
+
+  const formatSchedule = (
+    startDate?: string,
+    dueDate?: string,
+    estimatedHours?: number,
+  ) => {
+    if (!startDate && !dueDate && !estimatedHours) {
+      return null;
+    }
+
+    const parts = [];
+
+    if (startDate && dueDate) {
+      const start = new Date(startDate);
+      const end = new Date(dueDate);
+      const days = differenceInDays(end, start) + 1;
+
+      parts.push({
+        icon: Calendar,
+        text: `${format(start, "d MMM", { locale: localeId })} - ${format(end, "d MMM", { locale: localeId })}`,
+        subtext: `${days} hari`,
+      });
+    } else if (startDate) {
+      parts.push({
+        icon: Calendar,
+        text: format(new Date(startDate), "d MMM yyyy", { locale: localeId }),
+        subtext: "Mulai",
+      });
+    } else if (dueDate) {
+      parts.push({
+        icon: Calendar,
+        text: format(new Date(dueDate), "d MMM yyyy", { locale: localeId }),
+        subtext: "Target",
+      });
+    }
+
+    if (estimatedHours && estimatedHours > 0) {
+      const workDays = Math.ceil(estimatedHours / 8);
+      parts.push({
+        icon: Clock,
+        text: `${estimatedHours}h`,
+        subtext: `~${workDays} hari kerja`,
+      });
+    }
+
+    return parts;
   };
 
   return (
@@ -94,10 +144,45 @@ export function ExecutionTable({
                   </span>
                 </td>
                 <td className="px-6 py-5 border-r border-border/50 text-text-muted">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-text-subtle" />
-                    <span className="font-medium text-xs">{item.date}</span>
-                  </div>
+                  {(() => {
+                    const schedule = formatSchedule(
+                      item.startDate,
+                      item.dueDate,
+                      item.estimatedHours,
+                    );
+
+                    if (!schedule) {
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-text-subtle" />
+                          <span className="font-medium text-xs">
+                            {item.date}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        {schedule.map((part, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2 text-xs"
+                          >
+                            <part.icon className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-text">
+                                {part.text}
+                              </span>
+                              <span className="text-text-muted text-[10px]">
+                                {part.subtext}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="px-6 py-5 border-r border-border/50">
                   <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-background border border-transparent hover:border-border transition-colors px-2 py-1.5 rounded-lg">
