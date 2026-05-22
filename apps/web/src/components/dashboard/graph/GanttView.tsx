@@ -2,33 +2,26 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { format } from "date-fns";
 import { schedulingApi, type GraphNode } from "@/lib/core/scheduling.api";
+import { format as formatFns } from "date-fns";
 import { CustomGanttChart } from "./CustomGanttChart";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { RefreshCw, AlertCircle, Loader2 } from "lucide-react";
+import {
+  RefreshCw,
+  AlertCircle,
+  Loader2,
+  Download,
+  Image as ImageIcon,
+} from "lucide-react";
+import { toPng, toJpeg } from "html-to-image";
+import type { IssueStatus } from "@/types";
+import type {
+  FilterToggleProps,
+  StatusConfig,
+} from "@/types/components/GanttTypes";
 
 // Konfigurasi visual per status
-
-export type IssueStatus =
-  | "backlog"
-  | "todo"
-  | "in_progress"
-  | "in_review"
-  | "done"
-  | "cancelled"
-  | "bug";
-
-interface StatusConfig {
-  label: string;
-  color: string;
-  textColor: string;
-  opacity: number;
-  barStyle: "solid" | "outline" | "dashed";
-  showByDefault: boolean;
-  dotColor: string;
-}
 
 export const STATUS_CONFIG: Record<IssueStatus, StatusConfig> = {
   backlog: {
@@ -107,13 +100,7 @@ export const STATUS_PROGRESS: Record<IssueStatus, number> = {
   bug: 25,
 };
 
-// ─── Filter Toggle Bar ────────────────────────────────────────────────────────
-
-interface FilterToggleProps {
-  activeFilters: Set<IssueStatus>;
-  onToggle: (status: IssueStatus) => void;
-  counts: Partial<Record<IssueStatus, number>>;
-}
+// Filter Toggle Bar
 
 function StatusFilterToggle({
   activeFilters,
@@ -121,9 +108,9 @@ function StatusFilterToggle({
   counts,
 }: FilterToggleProps) {
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-[11px] text-text-muted mr-1 whitespace-nowrap">
-        Tampilkan:
+    <div className="flex items-center gap-2.5 flex-wrap">
+      <span className="text-[11px] font-semibold tracking-wider text-text-subtle uppercase mr-1 whitespace-nowrap">
+        Filter Status:
       </span>
 
       {(Object.entries(STATUS_CONFIG) as [IssueStatus, StatusConfig][]).map(
@@ -137,38 +124,37 @@ function StatusFilterToggle({
               onClick={() => onToggle(status)}
               title={`${isActive ? "Sembunyikan" : "Tampilkan"} ${cfg.label}`}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all",
-                "border",
-                isActive ? "border-opacity-40" : "border-border bg-transparent",
-                count === 0 && "opacity-40",
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-200 cursor-pointer select-none",
+                "border shadow-sm",
+                isActive 
+                  ? "bg-card border-primary/20 text-text" 
+                  : "bg-muted/10 border-border/40 text-text-subtle hover:text-text hover:bg-muted/20 hover:border-border/80",
+                count === 0 && !isActive && "opacity-40 hover:opacity-70",
               )}
-              style={{
-                borderColor: isActive ? cfg.dotColor : undefined,
-                backgroundColor: isActive ? `${cfg.dotColor}15` : undefined,
-                color: isActive ? cfg.dotColor : "#666",
-              }}
             >
               {/* Dot */}
               <span
-                className="w-1.5 h-1.5 rounded-full shrink-0"
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full shrink-0 transition-transform duration-200",
+                  isActive ? "scale-110" : "scale-100"
+                )}
                 style={{
-                  backgroundColor: isActive ? cfg.dotColor : "#666",
+                  backgroundColor: cfg.dotColor,
                 }}
               />
 
               {/* Label */}
-              {cfg.label}
+              <span className="tracking-wide">{cfg.label}</span>
 
               {/* Count badge */}
               {count > 0 && (
                 <span
-                  className="rounded-full px-1.5 text-[10px] font-bold min-w-[16px] text-center"
-                  style={{
-                    backgroundColor: isActive
-                      ? `${cfg.dotColor}30`
-                      : "#ffffff0a",
-                    color: isActive ? cfg.dotColor : "#555",
-                  }}
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[9px] font-bold min-w-[16px] text-center transition-colors",
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "bg-muted/40 text-text-subtle"
+                  )}
                 >
                   {count}
                 </span>
@@ -245,7 +231,7 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
     loadGantt();
   }, [loadGantt]);
 
-  // ─── Toggle filter ─────────────────────────────────────────────────────────
+  // Toggle filter
 
   const handleToggleFilter = useCallback((status: IssueStatus) => {
     setActiveFilters((prev) => {
@@ -270,6 +256,53 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
   const handleClearToActive = useCallback(() => {
     setActiveFilters(new Set(["todo", "in_progress"] as IssueStatus[]));
   }, []);
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = useCallback(
+    async (format: "png" | "jpg") => {
+      const node = document.getElementById("gantt-capture-area");
+      if (!node) return;
+
+      try {
+        setIsExporting(true);
+        // Wait a bit to ensure UI is ready (if any loading states exist)
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const getThemeColor = () => {
+          // Get current background color of the document body or card
+          const cardBg = window.getComputedStyle(document.body).backgroundColor;
+          return cardBg || "#ffffff";
+        };
+
+        const options = {
+          backgroundColor: getThemeColor(),
+          pixelRatio: 2, // Higher resolution
+          style: {
+            margin: "0",
+            padding: "16px",
+            borderRadius: "8px",
+          },
+        };
+
+        const dataUrl = await (format === "png"
+          ? toPng(node, options)
+          : toJpeg(node, { ...options, quality: 0.95 }));
+
+        const link = document.createElement("a");
+        const dateStr = formatFns(new Date(), "yyyy-MM-dd-HHmm");
+        link.download = `gantt-chart-${teamSlug}-${dateStr}.${format}`;
+        link.href = dataUrl;
+        link.click();
+      } catch (err) {
+        console.error("Failed to export Gantt Chart:", err);
+        alert("Gagal mengekspor Gantt Chart. Silakan coba lagi.");
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    [teamSlug],
+  );
 
   if (isLoading) {
     return (
@@ -365,30 +398,30 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
   const totalAll = tasks.length + tasksWithoutDates.length;
 
   return (
-    <div className="space-y-6 flex flex-col h-full">
+    <div className="space-y-6 flex flex-col h-full overflow-hidden pr-2 custom-scrollbar animate-fade-in">
       {/* ─── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-card border border-border rounded-xl p-4 shadow-sm">
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5 bg-card/60 backdrop-blur-sm border border-border/60 rounded-xl p-5 shadow-lg shadow-black/20">
         {/* Info banner */}
-        <div className="w-full lg:hidden mb-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-          <p className="text-xs text-blue-600 dark:text-blue-400">
-            💡 Gantt Chart menampilkan task dari Planning yang sudah masuk
-            Eksekusi. Status backlog hanya informasi, task tetap ditampilkan.
+        <div className="w-full xl:hidden mb-1 px-4 py-2.5 bg-primary/5 border border-primary/10 rounded-lg">
+          <p className="text-xs text-text-muted flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+            Gantt Chart menampilkan task dari Planning yang sudah masuk Eksekusi.
           </p>
         </div>
 
         {/* Kiri: View mode toggle + filter */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap w-full lg:w-auto">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-5 flex-wrap w-full xl:w-auto">
           {/* Day / Week / Month toggle */}
-          <div className="flex bg-muted/40 p-1 rounded-lg border border-border/50">
+          <div className="flex bg-muted/20 p-1 rounded-lg border border-border/40 shadow-inner">
             {(["Day", "Week", "Month"] as ViewMode[]).map((mode) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
                 className={cn(
-                  "px-4 py-1.5 text-sm font-semibold rounded-md transition-all",
+                  "px-4 py-1.5 text-xs font-bold rounded-md transition-all duration-200 cursor-pointer select-none",
                   viewMode === mode
-                    ? "bg-card text-text shadow-sm border border-border/50"
-                    : "text-text-muted hover:text-text hover:bg-muted/60",
+                    ? "bg-card text-text shadow-md border border-border/50"
+                    : "text-text-subtle hover:text-text hover:bg-muted/30",
                 )}
               >
                 {mode === "Day" ? "Hari" : mode === "Week" ? "Minggu" : "Bulan"}
@@ -397,7 +430,7 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
           </div>
 
           {/* Divider */}
-          <div className="hidden sm:block w-px h-6 bg-border" />
+          <div className="hidden md:block w-px h-6 bg-border/40" />
 
           {/* Status filter toggles */}
           <StatusFilterToggle
@@ -408,18 +441,18 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
         </div>
 
         {/* Kanan: shortcut + info */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full xl:w-auto shrink-0">
           {/* Shortcut buttons */}
           <div className="flex items-center gap-2">
             <button
               onClick={handleSelectAll}
-              className="px-3 py-1.5 rounded-lg border border-border bg-transparent text-text-muted hover:text-text hover:bg-muted/30 text-xs font-medium transition-all"
+              className="px-3 py-1.5 rounded-lg border border-border/50 bg-muted/10 text-text-subtle hover:text-text hover:bg-muted/20 hover:border-border text-xs font-semibold transition-all duration-200 cursor-pointer"
             >
               Semua
             </button>
             <button
               onClick={handleClearToActive}
-              className="px-3 py-1.5 rounded-lg border border-border bg-transparent text-text-muted hover:text-text hover:bg-muted/30 text-xs font-medium transition-all"
+              className="px-3 py-1.5 rounded-lg border border-border/50 bg-muted/10 text-text-subtle hover:text-text hover:bg-muted/20 hover:border-border text-xs font-semibold transition-all duration-200 cursor-pointer"
               title="Tampilkan hanya Todo & In Progress"
             >
               Sedang Dikerjakan
@@ -427,17 +460,47 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
           </div>
 
           {/* Divider */}
-          <div className="hidden sm:block w-px h-4 bg-border" />
+          <div className="hidden sm:block w-px h-4 bg-border/40" />
 
           {/* Counter info */}
-          <span className="text-xs text-text-muted whitespace-nowrap">
-            {totalFiltered} / {totalWithDates} task terjadwal
+          <span className="text-xs text-text-subtle whitespace-nowrap font-medium">
+            <strong className="text-text font-semibold">{totalFiltered}</strong> / {totalWithDates} task terjadwal
             {totalAll - totalWithDates > 0 && (
-              <span className="text-text-muted/60 ml-1">
-                ({totalAll - totalWithDates} belum ada jadwal)
+              <span className="text-text-subtle/50 ml-1">
+                ({totalAll - totalWithDates} draf)
               </span>
             )}
           </span>
+
+          {/* Export buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleExport("png")}
+              disabled={isExporting || filteredTasks.length === 0}
+              title="Download sebagai PNG"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/50 bg-muted/5 text-text-subtle hover:text-text hover:bg-muted/20 hover:border-border text-xs font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isExporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <ImageIcon className="w-3.5 h-3.5" />
+              )}
+              PNG
+            </button>
+            <button
+              onClick={() => handleExport("jpg")}
+              disabled={isExporting || filteredTasks.length === 0}
+              title="Download sebagai JPG"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/50 bg-muted/5 text-text-subtle hover:text-text hover:bg-muted/20 hover:border-border text-xs font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {isExporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              JPG
+            </button>
+          </div>
 
           {/* Refresh button */}
           <button
@@ -446,10 +509,10 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
               loadGantt();
             }}
             title="Refresh data"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-transparent text-text-muted hover:text-text hover:bg-muted/30 text-xs font-medium transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/50 bg-muted/5 text-text-subtle hover:text-text hover:bg-muted/20 hover:border-border text-xs font-semibold transition-all duration-200 cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            {format(lastUpdate, "HH:mm")}
+            {formatFns(lastUpdate, "HH:mm")}
           </button>
         </div>
       </div>
@@ -458,20 +521,25 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
       <AnimatePresence>
         {filteredTasks.length === 0 && tasks.length > 0 && !isLoading && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center h-[200px] bg-card rounded-xl border border-border p-6 text-center space-y-3"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex flex-col items-center justify-center min-h-[300px] bg-card/40 border border-border/60 rounded-xl p-8 text-center space-y-4 shadow-lg"
           >
-            <span className="text-4xl">📭</span>
-            <p className="text-sm text-text-muted">
-              Tidak ada task yang cocok dengan filter aktif
-            </p>
+            <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center border border-border/40 text-2xl shadow-inner">
+              📭
+            </div>
+            <div className="space-y-1.5 max-w-sm">
+              <h4 className="text-base font-semibold text-text">Semua task disembunyikan</h4>
+              <p className="text-xs text-text-subtle">
+                Sesuaikan filter status Anda di atas untuk menampilkan kembali jadwal tugas pada timeline.
+              </p>
+            </div>
             <button
               onClick={handleSelectAll}
-              className="mt-2 px-4 py-2 rounded-lg border border-border bg-transparent text-text-muted hover:text-text hover:bg-muted/30 text-xs font-medium transition-all"
+              className="px-4 py-2 rounded-lg border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold transition-all duration-200 cursor-pointer"
             >
-              Tampilkan semua status
+              Aktifkan Semua Status
             </button>
           </motion.div>
         )}
@@ -479,7 +547,9 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
 
       {/* Custom Gantt Chart */}
       {filteredTasks.length > 0 && (
-        <CustomGanttChart tasks={filteredTasks} viewMode={viewMode} />
+        <div id="gantt-capture-area" className="bg-card/30 border border-border/60 rounded-xl overflow-hidden shadow-xl flex-1 flex flex-col min-h-0">
+          <CustomGanttChart tasks={filteredTasks} viewMode={viewMode} />
+        </div>
       )}
 
       {/* Tasks without dates warning */}
@@ -487,29 +557,31 @@ export function GanttView({ teamSlug }: { teamSlug: string }) {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 shadow-sm"
+          className="bg-yellow-500/[0.03] border border-yellow-500/20 rounded-xl p-5 shadow-md"
         >
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-500 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-4">
+            <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center shrink-0 border border-yellow-500/20">
+              <AlertCircle className="w-4 h-4 text-yellow-500" />
+            </div>
             <div className="flex-1">
-              <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-400 mb-1">
-                {tasksWithoutDates.length} task belum memiliki jadwal
+              <h4 className="text-sm font-bold text-text mb-1">
+                {tasksWithoutDates.length} Task Belum Memiliki Jadwal Waktu
               </h4>
-              <p className="text-xs text-yellow-700/80 dark:text-yellow-500/80 mb-3">
-                Task berikut tidak ditampilkan di Gantt Chart karena belum ada
-                tanggal mulai/selesai:
+              <p className="text-xs text-text-subtle mb-4 max-w-2xl leading-relaxed">
+                Tugas di bawah ini terdaftar dalam rencana eksekusi tim tetapi tidak dapat dipetakan ke dalam timeline karena tidak memiliki tanggal mulai dan tenggat waktu.
               </p>
               <div className="flex flex-wrap gap-2">
                 {tasksWithoutDates.slice(0, 5).map((task) => (
                   <span
                     key={task.id}
-                    className="text-xs bg-yellow-500/20 text-yellow-800 dark:text-yellow-300 px-2.5 py-1.5 rounded-md font-medium border border-yellow-500/20"
+                    className="text-[11px] bg-card/80 text-text border border-border/80 px-2.5 py-1.5 rounded-lg font-medium shadow-sm transition-colors hover:border-border hover:bg-card"
                   >
-                    #{task.number} {task.title}
+                    <span className="text-text-subtle font-mono mr-1">#{task.number}</span>
+                    {task.title}
                   </span>
                 ))}
                 {tasksWithoutDates.length > 5 && (
-                  <span className="text-xs text-yellow-700 dark:text-yellow-500 px-2 py-1.5 font-medium">
+                  <span className="text-xs text-text-subtle bg-muted/10 border border-border/40 px-2.5 py-1.5 rounded-lg font-semibold flex items-center">
                     +{tasksWithoutDates.length - 5} lainnya
                   </span>
                 )}

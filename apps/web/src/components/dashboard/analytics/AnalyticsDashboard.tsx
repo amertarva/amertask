@@ -234,7 +234,7 @@ export function AnalyticsDashboard() {
   return (
     <div className="h-full flex flex-col bg-background p-4 sm:p-6 lg:p-8 animate-fade-in overflow-y-auto overflow-x-hidden w-full">
       <div className="mb-6 sm:mb-8 border-b border-border pb-4 sm:pb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-text tracking-tight flex items-center gap-3 break-words">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-text tracking-tight flex items-center gap-3 wrap-break-word">
           <BarChart3 className="w-6 h-6 sm:w-7 sm:h-7 text-primary shrink-0" />
           Analytics Tim
         </h1>

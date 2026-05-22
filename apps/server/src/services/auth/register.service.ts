@@ -1,12 +1,9 @@
 import { supabase } from "../../lib/supabase";
 import { hashPassword } from "./password.service";
 import { signAccessToken, signRefreshToken } from "./jwt.service";
+import type { RegisterPayload } from "../../types/services/auth/auth";
 
-export interface RegisterPayload {
-  name: string;
-  email: string;
-  password: string;
-}
+export type { RegisterPayload };
 
 export async function registerUser(payload: RegisterPayload) {
   const { name, email, password } = payload;

@@ -1,6 +1,11 @@
 import { apiClient } from "./http";
 
-export type ExportType = "planning" | "backlog" | "execution";
+export type ExportType =
+  | "planning"
+  | "backlog"
+  | "execution"
+  | "requirements"
+  | "srs";
 
 export interface ExportDocsResponse {
   success: boolean;

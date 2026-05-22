@@ -4,7 +4,7 @@ import { errors, type AppError } from "../lib/errors";
 import { resolveCandidateUserIds } from "../lib/userIdentity";
 import { supabase } from "../lib/supabase";
 
-type ExportType = "planning" | "backlog" | "execution";
+type ExportType = "planning" | "backlog" | "execution" | "requirements" | "srs";
 type GoogleDocsServiceModule = typeof import("../services/google-docs.service");
 
 let googleDocsServiceModulePromise: Promise<GoogleDocsServiceModule> | null =
@@ -31,6 +31,12 @@ interface TeamExportContext {
   slug: string;
   name: string;
   googleDocsUrl: string | null;
+  separateDocsEnabled: boolean;
+  backlogDocsUrl: string | null;
+  planningDocsUrl: string | null;
+  executionDocsUrl: string | null;
+  rDocsUrl: string | null;
+  srsDocsUrl: string | null;
   role: TeamRole;
 }
 
@@ -155,7 +161,9 @@ async function resolveTeamExportContext(
 
   const { data: team, error: teamError } = await supabase
     .from("teams")
-    .select("id, slug, name, owner_id, google_docs_url")
+    .select(
+      "id, slug, name, owner_id, google_docs_url, separate_docs_enabled, backlog_docs, planning_docs, execution_docs, r_docs, srs_docs",
+    )
     .ilike("slug", teamSlug)
     .maybeSingle<{
       id: string;
@@ -163,6 +171,12 @@ async function resolveTeamExportContext(
       name: string;
       owner_id: string;
       google_docs_url: string | null;
+      separate_docs_enabled: boolean | null;
+      backlog_docs: string | null;
+      planning_docs: string | null;
+      execution_docs: string | null;
+      r_docs: string | null;
+      srs_docs: string | null;
     }>();
 
   if (teamError) {
@@ -179,6 +193,12 @@ async function resolveTeamExportContext(
       slug: team.slug,
       name: team.name,
       googleDocsUrl: team.google_docs_url,
+      separateDocsEnabled: team.separate_docs_enabled === true,
+      backlogDocsUrl: team.backlog_docs,
+      planningDocsUrl: team.planning_docs,
+      executionDocsUrl: team.execution_docs,
+      rDocsUrl: team.r_docs,
+      srsDocsUrl: team.srs_docs,
       role: "owner" as const,
     };
   }
@@ -204,6 +224,12 @@ async function resolveTeamExportContext(
     slug: team.slug,
     name: team.name,
     googleDocsUrl: team.google_docs_url,
+    separateDocsEnabled: team.separate_docs_enabled === true,
+    backlogDocsUrl: team.backlog_docs,
+    planningDocsUrl: team.planning_docs,
+    executionDocsUrl: team.execution_docs,
+    rDocsUrl: team.r_docs,
+    srsDocsUrl: team.srs_docs,
     role: resolveHighestRole(
       memberships.map((membership) => String((membership as any).role || "")),
     ),
@@ -246,8 +272,8 @@ function toBacklogItems(teamSlug: string, issues: any[]) {
     .filter((issue) => issue.status === "backlog")
     .map((issue) => {
       // Extract from nested objects
-      const planInfo =
-        issue.planning?.plan_info ?? issue.plan_info ?? undefined;
+      // target_user is for "Pengguna" (backlog), plan_info is for "Output yang Diharapkan" (planning)
+      const targetUser = issue.planning?.target_user ?? undefined;
       const reason = issue.triage?.reason ?? issue.reason ?? undefined;
 
       return {
@@ -256,7 +282,7 @@ function toBacklogItems(teamSlug: string, issues: any[]) {
         teamSlug,
         title: issue.title,
         description: issue.description ?? undefined,
-        targetUser: planInfo,
+        targetUser,
         priority: issue.priority,
         reason,
       };
@@ -292,10 +318,26 @@ function toExecutionItems(teamSlug: string, issues: any[]) {
     });
 }
 
+function toRequirementsItems(requirements: any[]) {
+  return requirements.map((req) => ({
+    id: req.id,
+    type: req.type,
+    description: req.description,
+    priority: req.priority,
+    acceptanceCriteria: req.acceptance_criteria,
+    nfrCategory: req.nfr_category,
+    createdAt: req.created_at,
+    issue: req.issue ?? null,
+  }));
+}
+
 function mapExportTypeToMessage(type: ExportType) {
   if (type === "planning") return "Planning";
   if (type === "backlog") return "Backlog";
-  return "Execution";
+  if (type === "execution") return "Execution";
+  if (type === "requirements") return "Requirements";
+  if (type === "srs") return "SRS";
+  return "Data";
 }
 
 export const exportRoutes = new Elysia({
@@ -311,18 +353,53 @@ export const exportRoutes = new Elysia({
       const team = await resolveTeamExportContext(teamSlug, currentUser);
       const googleDocsService = await getGoogleDocsService();
 
-      if (!team.googleDocsUrl) {
+      // Otherwise, fallback to the main googleDocsUrl.
+      let targetDocsUrl: string | null = null;
+      if (type === "requirements") {
+        targetDocsUrl = team.rDocsUrl;
+      } else if (type === "srs") {
+        targetDocsUrl = team.srsDocsUrl;
+      } else if (type === "backlog") {
+        targetDocsUrl = team.separateDocsEnabled
+          ? team.backlogDocsUrl || team.googleDocsUrl
+          : team.googleDocsUrl;
+      } else if (type === "planning") {
+        targetDocsUrl = team.separateDocsEnabled
+          ? team.planningDocsUrl || team.googleDocsUrl
+          : team.googleDocsUrl;
+      } else if (type === "execution") {
+        targetDocsUrl = team.separateDocsEnabled
+          ? team.executionDocsUrl || team.googleDocsUrl
+          : team.googleDocsUrl;
+      } else {
+        targetDocsUrl = team.googleDocsUrl;
+      }
+
+      console.log(`[export] ${type} -> URL resolved:`, {
+        separateDocsEnabled: team.separateDocsEnabled,
+        backlogDocsUrl: team.backlogDocsUrl,
+        planningDocsUrl: team.planningDocsUrl,
+        executionDocsUrl: team.executionDocsUrl,
+        googleDocsUrl: team.googleDocsUrl,
+        targetDocsUrl,
+      });
+
+      if (!targetDocsUrl) {
+        const urlTypeMessage =
+          type === "requirements"
+            ? "Requirements (R-Docs)"
+            : type === "srs"
+              ? "SRS"
+              : "Google Docs";
+
         set.status = 422;
         return {
           error: "DOCS_NOT_CONFIGURED",
-          message:
-            "Google Docs URL belum dikonfigurasi. Buka Settings proyek lalu isi Google Docs URL.",
+          message: `${urlTypeMessage} URL belum dikonfigurasi. Buka Settings proyek lalu isi ${urlTypeMessage} URL di bagian Integrasi.`,
         };
       }
 
-      const documentId = googleDocsService.extractDocumentId(
-        team.googleDocsUrl,
-      );
+      const documentId = googleDocsService.extractDocumentId(targetDocsUrl);
 
       if (!documentId) {
         set.status = 422;
@@ -366,7 +443,9 @@ export const exportRoutes = new Elysia({
       if (issueIds.length > 0) {
         const { data: planningData } = await supabase
           .from("issue_planning")
-          .select("issue_id, plan_info, start_date, due_date, estimated_hours")
+          .select(
+            "issue_id, plan_info, target_user, start_date, due_date, estimated_hours",
+          )
           .in("issue_id", issueIds)
           .not("issue_id", "is", null);
 
@@ -462,10 +541,72 @@ export const exportRoutes = new Elysia({
         );
       }
 
+      if (type === "requirements") {
+        // Get requirements data
+        const { data: requirements, error: requirementsError } = await supabase
+          .from("requirements")
+          .select("*, issue:issues(id, number, title)")
+          .eq("team_id", team.id)
+          .order("created_at", { ascending: true });
+
+        if (requirementsError) {
+          throw errors.internal(
+            `Gagal mengambil data requirements: ${requirementsError.message}`,
+          );
+        }
+
+        const requirementsItems = toRequirementsItems(requirements ?? []);
+        exportedCount = requirementsItems.length;
+        await googleDocsService.exportRequirements(
+          documentId,
+          requirementsItems,
+          team.name,
+          team.slug,
+        );
+      }
+
+      if (type === "srs") {
+        // Get SRS document data
+        const { data: srsDoc, error: srsError } = await supabase
+          .from("srs_documents")
+          .select("*")
+          .eq("team_id", team.id)
+          .maybeSingle();
+
+        if (srsError) {
+          throw errors.internal(
+            `Gagal mengambil data SRS: ${srsError.message}`,
+          );
+        }
+
+        // Get requirements data for SRS
+        const { data: requirements, error: requirementsError } = await supabase
+          .from("requirements")
+          .select("*, issue:issues(id, number, title)")
+          .eq("team_id", team.id)
+          .order("type, created_at", { ascending: true });
+
+        if (requirementsError) {
+          throw errors.internal(
+            `Gagal mengambil data requirements untuk SRS: ${requirementsError.message}`,
+          );
+        }
+
+        const requirementsItems = toRequirementsItems(requirements ?? []);
+        exportedCount = requirementsItems.length;
+        await googleDocsService.exportSrs(
+          documentId,
+          srsDoc,
+          requirementsItems,
+          team.name,
+          team.slug,
+        );
+      }
+
       return {
         success: true,
         message: `${mapExportTypeToMessage(type)} berhasil disalin ke Google Docs`,
-        documentUrl: team.googleDocsUrl,
+        documentUrl: targetDocsUrl,
         exportedAt: new Date().toISOString(),
         totalItems: exportedCount,
       };
@@ -520,6 +661,8 @@ export const exportRoutes = new Elysia({
         t.Literal("planning"),
         t.Literal("backlog"),
         t.Literal("execution"),
+        t.Literal("requirements"),
+        t.Literal("srs"),
       ]),
     }),
   },

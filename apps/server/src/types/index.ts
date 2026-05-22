@@ -100,3 +100,8 @@ export interface IssueFilters {
   page?: number;
   limit?: number;
 }
+
+// Service types
+export type { CreateIssuePayload } from "./services/issues/issues";
+export type { SrsDocument } from "./services/srs/srs";
+export type { TokenPayload, RegisterPayload } from "./services/auth/auth";

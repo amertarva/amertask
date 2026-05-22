@@ -44,7 +44,7 @@ export function PlanningModal({
     >
       <div
         className={cn(
-          "w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col animate-slide-up shadow-2xl",
+          "w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col animate-slide-up shadow-2xl transition-all duration-300",
           isDarkMode
             ? "bg-background-secondary border border-border/70"
             : "bg-white border border-slate-200",
@@ -53,14 +53,14 @@ export function PlanningModal({
         {/* Modal Header */}
         <div className="flex items-start justify-between px-8 pt-8 pb-4">
           <div className="flex gap-4">
-            <div className="p-3 rounded-full bg-primary/10 text-primary shrink-0">
+            <div className="p-3.5 rounded-2xl bg-primary/10 text-primary border border-primary/20 shadow-sm shrink-0 flex items-center justify-center">
               <Edit2 className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-extrabold text-2xl text-text">
+              <h3 className="font-extrabold text-2xl text-text tracking-tight">
                 {isCreating ? "Buat Planning Baru" : "Edit Sprint Planning"}
               </h3>
-              <p className="text-text-muted text-sm mt-1">
+              <p className="text-text-muted text-sm mt-1 leading-relaxed">
                 {isCreating
                   ? "Tambahkan rencana eksekusi dan kriteria penerimaannya"
                   : `Perbarui hasil ekspektasi untuk item ${editingItem?.id}`}
@@ -71,7 +71,7 @@ export function PlanningModal({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="rounded-full text-text-muted hover:text-text"
+            className="rounded-full text-text-muted hover:text-text hover:bg-muted/50 transition-all active:scale-95"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -85,22 +85,22 @@ export function PlanningModal({
         />
 
         {/* Modal Body */}
-        <div className="px-8 py-4 flex flex-col gap-6 overflow-y-auto max-h-[60vh]">
+        <div className="px-8 py-5 flex flex-col gap-6 overflow-y-auto max-h-[60vh] custom-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Input
-              label="ID Backlog"
+              label="ID Planning"
               value={
                 isCreating
                   ? `${teamSlug?.toUpperCase()}-${String(nextPlanningNumber || 1).padStart(3, "0")}`
                   : editingItem?.number
-                    ? `${teamSlug?.toUpperCase()}-P${String(editingItem.number).padStart(3, "0")}`
+                    ? `${teamSlug?.toUpperCase()}-${String(editingItem.number).padStart(3, "0")}`
                     : editForm.id || ""
               }
               className={cn(
-                "uppercase font-medium",
+                "uppercase font-medium rounded-xl h-11 border-dashed",
                 isDarkMode
-                  ? "bg-background border-input"
-                  : "bg-white border-slate-200",
+                  ? "bg-background-tertiary/40 border-border/80 text-text-muted"
+                  : "bg-slate-50 border-slate-200 text-text-muted",
               )}
               disabled
             />
@@ -111,9 +111,10 @@ export function PlanningModal({
                 setEditForm({ ...editForm, featureName: e.target.value })
               }
               className={cn(
+                "rounded-xl h-11 font-medium focus-visible:ring-primary/30 focus-visible:border-primary/60",
                 isDarkMode
-                  ? "bg-background border-input"
-                  : "bg-white border-slate-200",
+                  ? "bg-background border-input hover:border-border-strong/50"
+                  : "bg-white border-slate-200 hover:border-slate-300",
               )}
               disabled={!isCreating}
             />
@@ -128,17 +129,16 @@ export function PlanningModal({
                 <Dropdown
                   align="left"
                   className="w-full"
-                  reserveSpaceWhenOpen
                   trigger={
                     <button
                       type="button"
                       className={cn(
-                        "flex w-full items-center justify-between bg-transparent border border-border rounded-xl px-4 py-3 text-sm font-semibold text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer shadow-sm hover:bg-muted/30",
-                        isDarkMode ? "bg-background" : "bg-white",
+                        "flex h-11 w-full items-center justify-between bg-transparent border border-border rounded-xl px-4 text-sm font-semibold text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary/45 transition-all cursor-pointer shadow-sm hover:border-primary/30 active:scale-[0.99]",
+                        isDarkMode ? "bg-background hover:bg-muted/10" : "bg-white hover:bg-slate-50",
                       )}
                     >
                       <span
-                        className={editForm.assigneeId ? "" : "text-text-muted"}
+                        className={editForm.assigneeId ? "font-bold" : "text-text-muted"}
                       >
                         {isMembersLoading
                           ? "Memuat anggota tim..."
@@ -171,16 +171,15 @@ export function PlanningModal({
                 <Dropdown
                   align="left"
                   className="w-full"
-                  reserveSpaceWhenOpen
                   trigger={
                     <button
                       type="button"
                       className={cn(
-                        "flex w-full items-center justify-between bg-transparent border border-border rounded-xl px-4 py-3 text-sm font-semibold text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer shadow-sm hover:bg-muted/30",
-                        isDarkMode ? "bg-background" : "bg-white",
+                        "flex h-11 w-full items-center justify-between bg-transparent border border-border rounded-xl px-4 text-sm font-semibold text-text outline-none focus:border-primary focus:ring-1 focus:ring-primary/45 transition-all cursor-pointer shadow-sm hover:border-primary/30 active:scale-[0.99]",
+                        isDarkMode ? "bg-background hover:bg-muted/10" : "bg-white hover:bg-slate-50",
                       )}
                     >
-                      <span>
+                      <span className="font-bold">
                         {[
                           { value: "urgent", label: "Penting" },
                           { value: "high", label: "Tinggi" },
@@ -216,8 +215,8 @@ export function PlanningModal({
             )}
           >
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-1 h-5 bg-primary rounded-full" />
-              <label className="block text-sm font-bold text-text">
+              <div className="w-1.5 h-4.5 bg-primary rounded-full" />
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-text-muted">
                 Jadwal & Estimasi Pengerjaan
               </label>
             </div>
@@ -235,7 +234,6 @@ export function PlanningModal({
                     }
                     placeholder="Pilih tanggal mulai..."
                     className="w-full"
-                    reserveSpaceWhenOpen
                     minDate={new Date().toISOString().split("T")[0]}
                   />
                 </div>
@@ -253,7 +251,6 @@ export function PlanningModal({
                     placeholder="Pilih tanggal selesai..."
                     className="w-full"
                     disabled={!editForm.startDate}
-                    reserveSpaceWhenOpen
                     minDate={
                       editForm.startDate ||
                       new Date().toISOString().split("T")[0]
@@ -276,27 +273,42 @@ export function PlanningModal({
                   step={1}
                   placeholder="Kosongkan jika belum tahu"
                   className={cn(
-                    "font-medium",
+                    "font-medium rounded-xl h-11 focus-visible:ring-primary/30 focus-visible:border-primary/60",
                     isDarkMode
-                      ? "bg-background border-input"
-                      : "bg-white border-slate-200",
+                      ? "bg-background border-input hover:border-border-strong/50"
+                      : "bg-white border-slate-200 hover:border-slate-300",
                   )}
                 />
               </div>
             </div>
 
             {editForm.startDate && editForm.dueDate && (
-              <div className="text-xs text-text-muted bg-muted/30 border border-border/50 rounded-lg px-3 py-2">
-                Durasi:{" "}
-                {Math.ceil(
-                  (new Date(editForm.dueDate).getTime() -
-                    new Date(editForm.startDate).getTime()) /
-                    (1000 * 60 * 60 * 24),
-                )}{" "}
-                hari
-                {editForm.estimatedHours &&
-                  editForm.estimatedHours > 0 &&
-                  ` • ${Math.ceil(editForm.estimatedHours / 8)} hari kerja (8 jam/hari)`}
+              <div className={cn(
+                "text-xs font-semibold px-4 py-2.5 rounded-xl border flex items-center justify-between transition-all",
+                isDarkMode 
+                  ? "bg-muted/20 border-border/40 text-text-muted" 
+                  : "bg-slate-50 border-slate-200 text-text-muted"
+              )}>
+                <span>
+                  Durasi Pelaksanaan:{" "}
+                  <strong className="text-text">
+                    {Math.ceil(
+                      (new Date(editForm.dueDate).getTime() -
+                        new Date(editForm.startDate).getTime()) /
+                        (1000 * 60 * 60 * 24),
+                    )}{" "}
+                    hari
+                  </strong>
+                </span>
+                {editForm.estimatedHours && editForm.estimatedHours > 0 ? (
+                  <span>
+                    •{" "}
+                    <strong className="text-primary">
+                      {Math.ceil(editForm.estimatedHours / 8)} hari kerja
+                    </strong>{" "}
+                    (8 jam/hari)
+                  </span>
+                ) : null}
               </div>
             )}
           </div>
@@ -308,7 +320,7 @@ export function PlanningModal({
             )}
           >
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-text">
+              <label className="block text-sm font-semibold text-text">
                 Output yang Diharapkan
               </label>
               <Button
@@ -323,7 +335,7 @@ export function PlanningModal({
                     expectedOutput: [...current, ""],
                   });
                 }}
-                className="h-8 px-2 text-primary hover:text-primary-hover hover:bg-primary/10"
+                className="h-8 px-3 text-primary hover:text-primary-hover hover:bg-primary/10 rounded-lg font-semibold text-xs transition-all duration-200"
                 leftIcon={<Plus className="w-3.5 h-3.5" />}
               >
                 Tambah Output
@@ -334,7 +346,18 @@ export function PlanningModal({
                 ? editForm.expectedOutput
                 : [editForm.expectedOutput || ""]
               ).map((out: string, index: number) => (
-                <div key={index} className="flex gap-2 items-start">
+                <div
+                  key={index}
+                  className={cn(
+                    "flex gap-3 items-start p-3 rounded-xl border transition-all duration-200",
+                    isDarkMode
+                      ? "bg-background/25 border-border/60 focus-within:border-primary/40 focus-within:bg-background/40"
+                      : "bg-slate-50/50 border-slate-200 focus-within:border-primary/40 focus-within:bg-white",
+                  )}
+                >
+                  <div className="bg-primary/10 text-primary w-6 h-6 rounded-lg flex items-center justify-center text-xs font-extrabold shrink-0 mt-1">
+                    {index + 1}
+                  </div>
                   <textarea
                     value={out}
                     rows={2}
@@ -345,12 +368,7 @@ export function PlanningModal({
                       newOut[index] = e.target.value;
                       setEditForm({ ...editForm, expectedOutput: newOut });
                     }}
-                    className={cn(
-                      "flex w-full rounded px-3 py-2 text-sm placeholder:text-text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none",
-                      isDarkMode
-                        ? "bg-background border border-input"
-                        : "bg-white border border-slate-200",
-                    )}
+                    className="flex-1 bg-transparent text-sm placeholder:text-text-subtle/80 focus:outline-none resize-none border-none outline-none focus:ring-0 p-0 text-text leading-relaxed font-medium"
                     placeholder={`Kriteria ${index + 1}...`}
                   />
                   {index > 0 && (
@@ -367,7 +385,7 @@ export function PlanningModal({
                         newOut.splice(index, 1);
                         setEditForm({ ...editForm, expectedOutput: newOut });
                       }}
-                      className="h-9 w-9 text-priority-urgent hover:text-priority-urgent hover:bg-priority-urgent/10 shrink-0"
+                      className="h-8 w-8 text-priority-urgent hover:text-priority-urgent hover:bg-priority-urgent/10 rounded-lg shrink-0 transition-colors mt-0.5"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -391,9 +409,9 @@ export function PlanningModal({
             variant="secondary"
             onClick={onClose}
             className={cn(
-              "px-6 text-text font-semibold",
+              "px-6 h-11 text-text font-bold rounded-xl transition-all duration-150 active:scale-95",
               isDarkMode
-                ? "bg-muted hover:bg-muted/80"
+                ? "bg-muted/70 hover:bg-muted"
                 : "bg-slate-100 hover:bg-slate-200",
             )}
           >
@@ -403,7 +421,10 @@ export function PlanningModal({
             variant="primary"
             onClick={onSave}
             leftIcon={<Save className="w-4 h-4" />}
-            className="px-6 font-bold shadow-lg shadow-primary/20"
+            className={cn(
+              "px-6 h-11 font-bold rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all duration-150 active:scale-95",
+              isDarkMode ? "border border-primary/30" : "border border-primary/20"
+            )}
           >
             {isCreating ? "Buat Baru" : "Simpan Perubahan"}
           </Button>

@@ -11,6 +11,12 @@ export type FormState = {
   description: string;
   githubRepo: string;
   googleDocsUrl: string;
+  separateDocsEnabled: boolean;
+  backlogDocs: string;
+  planningDocs: string;
+  executionDocs: string;
+  rDocs: string;
+  srsDocs: string;
 };
 
 export type ProjectSettingsTab = "project" | "integrations" | "access";
@@ -26,6 +32,12 @@ export const INITIAL_FORM: FormState = {
   description: "",
   githubRepo: "",
   googleDocsUrl: "",
+  separateDocsEnabled: false,
+  backlogDocs: "",
+  planningDocs: "",
+  executionDocs: "",
+  rDocs: "",
+  srsDocs: "",
 };
 
 export type ProjectSettingsTabButtonProps = {

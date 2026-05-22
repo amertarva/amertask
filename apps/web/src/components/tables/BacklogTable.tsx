@@ -26,9 +26,9 @@ export function BacklogTable({
   const getPriorityMap = (priority: string): any => {
     switch (priority) {
       case "TINGGI":
-        return "urgent";
-      case "SEDANG":
         return "high";
+      case "SEDANG":
+        return "medium";
       case "RENDAH":
         return "low";
       default:

@@ -51,6 +51,12 @@ export default function ProjectSettingsPage() {
       description: settings.description || "",
       githubRepo: settings.integrations?.githubRepo || "",
       googleDocsUrl: settings.integrations?.googleDocsUrl || "",
+      separateDocsEnabled: settings.integrations?.separateDocsEnabled === true,
+      backlogDocs: settings.integrations?.backlogDocs || "",
+      planningDocs: settings.integrations?.planningDocs || "",
+      executionDocs: settings.integrations?.executionDocs || "",
+      rDocs: settings.integrations?.rDocs || "",
+      srsDocs: settings.integrations?.srsDocs || "",
     });
   }, [settings]);
 
@@ -82,6 +88,12 @@ export default function ProjectSettingsPage() {
         integrations: {
           githubRepo: form.githubRepo || undefined,
           googleDocsUrl: form.googleDocsUrl || undefined,
+          separateDocsEnabled: form.separateDocsEnabled,
+          backlogDocs: form.backlogDocs || undefined,
+          planningDocs: form.planningDocs || undefined,
+          executionDocs: form.executionDocs || undefined,
+          rDocs: form.rDocs || undefined,
+          srsDocs: form.srsDocs || undefined,
         },
       });
       setSaveSuccess(true);
@@ -196,19 +208,27 @@ export default function ProjectSettingsPage() {
 
           {/* Mobile-only Delete Button */}
           <div className="lg:hidden mt-8 pt-8 border-t border-border">
-            <h3 className="text-xl font-extrabold text-priority-urgent mb-4">Zona Berbahaya</h3>
+            <h3 className="text-xl font-extrabold text-priority-urgent mb-4">
+              Zona Berbahaya
+            </h3>
             <button
               onClick={() => void handleDeleteProject()}
               disabled={isDeleting}
               className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all text-left bg-priority-urgent/10 border border-priority-urgent/20 text-priority-urgent hover:bg-priority-urgent/20 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <div className="p-3 rounded-xl bg-priority-urgent text-white">
-                {isDeleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                {isDeleting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-5 h-5" />
+                )}
               </div>
               <div>
                 <h4 className="font-extrabold text-base">Hapus Proyek</h4>
                 <p className="text-xs font-semibold mt-1 opacity-80">
-                  {isDeleting ? "Sedang menghapus..." : "Aksi ini tidak bisa dibatalkan"}
+                  {isDeleting
+                    ? "Sedang menghapus..."
+                    : "Aksi ini tidak bisa dibatalkan"}
                 </p>
               </div>
             </button>

@@ -216,7 +216,6 @@ export function NewProjectWizard() {
                   <Dropdown
                     align="left"
                     className="w-full"
-                    reserveSpaceWhenOpen
                     trigger={
                       <button
                         type="button"

@@ -5,30 +5,54 @@ import { BacklogHeader } from "@/components/header/BacklogHeader";
 import { BacklogTabs } from "@/components/tabs/BacklogTabs";
 import { BacklogTable } from "@/components/tables/BacklogTable";
 import { BacklogModal } from "@/components/modals/BacklogModal";
-import { Skeleton } from "@/components/ui";
+import { Skeleton, Button } from "@/components/ui";
 import { useIssues } from "@/hooks/useIssues";
 import { useParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { tokenStorage } from "@/lib/core";
+import type { Issue } from "@/types/models/Issue";
+import type { BacklogItem } from "@/types/components/BacklogContainerTypes";
 
-function getTargetUserValue(issue: any) {
-  const rawValue = issue.planInfo ?? issue.plan_info ?? "";
+function getTargetUserValue(issue: Issue): string {
+  // Read target_user from planning (separate from plan_info / Output yang Diharapkan)
+  const targetUser = issue.planning?.target_user;
 
-  if (typeof rawValue !== "string") return "";
+  if (typeof targetUser !== "string") return "";
 
-  const normalizedValue = rawValue.trim();
+  const normalizedValue = targetUser.trim();
   if (!normalizedValue) return "";
   if (normalizedValue.toLowerCase() === "belum ditentukan") return "";
 
   return normalizedValue;
 }
 
-function mapPriorityLabelToIssuePriority(priorityLabel: unknown) {
-  if (priorityLabel === "TINGGI") return "urgent";
-  if (priorityLabel === "SEDANG") return "high";
+function mapPriorityLabelToIssuePriority(
+  priorityLabel: unknown,
+): string | undefined {
+  if (priorityLabel === "TINGGI") return "high";
+  if (priorityLabel === "SEDANG") return "medium";
   if (priorityLabel === "RENDAH") return "low";
 
   return undefined;
 }
+
+const PRIORITY_DISPLAY_MAP: Record<
+  string,
+  { label: string; className: string }
+> = {
+  high: {
+    label: "TINGGI",
+    className:
+      "text-priority-urgent bg-priority-urgent/10 border-priority-urgent/20",
+  },
+  medium: {
+    label: "SEDANG",
+    className: "text-priority-high bg-priority-high/10 border-priority-high/20",
+  },
+  low: {
+    label: "RENDAH",
+    className: "text-priority-low bg-priority-low/10 border-priority-low/20",
+  },
+};
 
 export function BacklogContainer() {
   const params = useParams();
@@ -40,83 +64,87 @@ export function BacklogContainer() {
     refetch,
     updateIssue,
     deleteIssue,
+    createIssue,
   } = useIssues(teamSlug, {});
 
   const [activeTab, setActiveTab] = useState<"product" | "priority">("product");
-  const [products, setProducts] = useState<any[]>([]);
-  const [priorities, setPriorities] = useState<any[]>([]);
-  const [executionCandidates, setExecutionCandidates] = useState<any[]>([]);
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState({
     top: 0,
     right: 0,
     isBottom: false,
   });
-  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [editingItem, setEditingItem] = useState<BacklogItem | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [editForm, setEditForm] = useState<any>({});
+  const [editForm, setEditForm] = useState<Partial<BacklogItem>>({});
 
-  // Transform issues from hook
+  // Set mounted state - this is a common pattern for client-side only rendering
   useEffect(() => {
-    if (!teamSlug || issuesLoading) return;
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
+  }, []);
 
-    // Transform to product backlog (all backlog issues)
-    const productData = allIssues
-      .filter((issue: any) => issue.status === "backlog")
-      .map((issue: any) => ({
+  // Compute derived state from issues - no need to store in state
+  const products: BacklogItem[] = React.useMemo(() => {
+    if (!teamSlug || issuesLoading) return [];
+
+    return allIssues
+      .filter((issue: Issue) => issue.status === "backlog")
+      .map((issue: Issue) => ({
         id: `${teamSlug}-${issue.number}`,
         issueId: issue.id,
         featureName: issue.title,
         description: issue.description || "Tidak ada deskripsi",
         targetUser: getTargetUserValue(issue),
       }));
+  }, [teamSlug, allIssues, issuesLoading]);
 
-    // Transform to priority backlog (urgent/high priority)
-    const priorityData = allIssues
+  const priorities: BacklogItem[] = React.useMemo(() => {
+    if (!teamSlug || issuesLoading) return [];
+
+    return allIssues
       .filter(
-        (issue: any) =>
+        (issue: Issue) =>
           issue.status === "backlog" &&
-          ["urgent", "high"].includes(issue.priority),
+          ["high", "medium", "low"].includes(issue.priority),
       )
-      .map((issue: any) => {
-        const priorityClass =
-          issue.priority === "urgent"
-            ? "text-priority-urgent bg-priority-urgent/10 border-priority-urgent/20"
-            : "text-priority-high bg-priority-high/10 border-priority-high/20";
+      .map((issue: Issue) => {
+        const display = PRIORITY_DISPLAY_MAP[issue.priority];
+        const priorityClass = display?.className ?? "";
+        const triageReason =
+          (issue as any).triage?.reason ?? issue.reason ?? "";
 
         return {
           id: `${teamSlug}-${issue.number}`,
           issueId: issue.id,
           featureName: issue.title,
-          priority: issue.priority === "urgent" ? "TINGGI" : "SEDANG",
+          priority: display?.label ?? "",
           priorityClass,
-          reason: issue.reason || "",
+          reason: triageReason,
         };
       });
+  }, [teamSlug, allIssues, issuesLoading]);
 
-    setProducts(productData);
-    setPriorities(priorityData);
+  const executionCandidates: BacklogItem[] = React.useMemo(() => {
+    if (!teamSlug || issuesLoading) return [];
 
-    const candidates = allIssues
-      .filter((issue: any) =>
+    return allIssues
+      .filter((issue: Issue) =>
         ["todo", "in_progress", "in_review", "done", "cancelled"].includes(
           issue.status,
         ),
       )
-      .map((issue: any) => ({
+      .map((issue: Issue) => ({
         issueId: issue.id,
         id: `${teamSlug}-${issue.number}`,
         featureName: issue.title,
         description: issue.description || "Tidak ada deskripsi",
         targetUser: getTargetUserValue(issue),
-        reason: issue.reason || "",
+        reason: (issue as any).triage?.reason ?? issue.reason ?? "",
         priority: issue.priority,
         status: issue.status,
       }));
-
-    setExecutionCandidates(candidates);
   }, [teamSlug, allIssues, issuesLoading]);
 
   const handleDelete = async (id: string) => {
@@ -128,87 +156,120 @@ export function BacklogContainer() {
     if (!item) return;
 
     try {
-      await deleteIssue(item.issueId);
-
-      if (activeTab === "product") {
-        setProducts(products.filter((p) => p.id !== id));
-      } else {
-        setPriorities(priorities.filter((p) => p.id !== id));
-      }
+      await updateIssue(item.issueId, { status: "todo" });
+      // Data will be automatically updated via refetch in useIssues hook
       setOpenMenuId(null);
     } catch (error) {
-      console.error("Error deleting issue:", error);
+      console.error("Error reverting issue to execution:", error);
     }
   };
 
-  const openEditModal = (item: any) => {
+  const openEditModal = (item: BacklogItem) => {
     setEditingItem(item);
     setEditForm({ ...item });
     setOpenMenuId(null);
   };
 
   const saveEdit = async () => {
+    if (!editingItem && !isCreating) return;
+
     try {
+      const priorityReason =
+        typeof editForm.reason === "string" ? editForm.reason.trim() : "";
       const targetUserValue =
         typeof editForm.targetUser === "string"
           ? editForm.targetUser.trim()
           : "";
 
       if (isCreating) {
-        const selectedExecutionId = editForm.executionIssueId;
-        if (!selectedExecutionId) {
-          console.error("Execution issue belum dipilih");
-          return;
+        let finalIssueId = editForm.executionIssueId;
+
+        if (!finalIssueId) {
+          if (!editForm.featureName) {
+            console.error("Nama Fitur harus diisi");
+            return;
+          }
+          // Manual creation without picking execution item
+          const newIssue = await createIssue({
+            title: editForm.featureName,
+            description:
+              activeTab === "product" ? editForm.description : undefined,
+            status: "backlog",
+            priority:
+              activeTab === "priority"
+                ? mapPriorityLabelToIssuePriority(editForm.priority)
+                : undefined,
+            reason:
+              activeTab === "priority"
+                ? priorityReason || undefined
+                : undefined,
+          });
+          finalIssueId = newIssue.id;
+        } else {
+          // Update the selected execution item
+          await updateIssue(finalIssueId, {
+            title: editForm.featureName,
+            description:
+              activeTab === "product" ? editForm.description : undefined,
+            status: "backlog",
+            priority:
+              activeTab === "priority"
+                ? mapPriorityLabelToIssuePriority(editForm.priority)
+                : undefined,
+            reason:
+              activeTab === "priority"
+                ? priorityReason || undefined
+                : undefined,
+          });
         }
 
-        await updateIssue(selectedExecutionId, {
-          status: "backlog",
-          priority:
-            activeTab === "priority"
-              ? mapPriorityLabelToIssuePriority(editForm.priority)
-              : undefined,
-          planInfo: activeTab === "product" ? targetUserValue : undefined,
-        });
-
-        setExecutionCandidates(
-          executionCandidates.filter(
-            (item) => item.issueId !== selectedExecutionId,
-          ),
-        );
-      } else {
+        // Update planInfo via issue_planning table
+        if (activeTab === "product" && targetUserValue && finalIssueId) {
+          const token = tokenStorage.getAccess();
+          await fetch(`/api/issues/${finalIssueId}/planning`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
+            body: JSON.stringify({
+              target_user: targetUserValue,
+            }),
+          });
+        }
+      } else if (editingItem) {
         // Update existing issue
         await updateIssue(editingItem.issueId, {
           title: editForm.featureName,
           description:
-            activeTab === "product" ? editForm.description : editForm.reason,
+            activeTab === "product" ? editForm.description : undefined,
           priority:
             activeTab === "priority"
               ? mapPriorityLabelToIssuePriority(editForm.priority)
               : undefined,
-          planInfo: activeTab === "product" ? targetUserValue : undefined,
+          reason:
+            activeTab === "priority" ? priorityReason || undefined : undefined,
         });
 
+        // Update planInfo via issue_planning table
         if (activeTab === "product") {
-          setProducts(
-            products.map((p) =>
-              p.id === editingItem.id ? { ...p, ...editForm } : p,
-            ),
-          );
-        } else {
-          const priorityClass =
-            editForm.priority === "TINGGI"
-              ? "text-priority-urgent bg-priority-urgent/10 border-priority-urgent/20"
-              : "text-priority-high bg-priority-high/10 border-priority-high/20";
-
-          setPriorities(
-            priorities.map((p) =>
-              p.id === editingItem.id
-                ? { ...p, ...editForm, priorityClass }
-                : p,
-            ),
-          );
+          const token = tokenStorage.getAccess();
+          await fetch(`/api/issues/${editingItem.issueId}/planning`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
+            body: JSON.stringify({
+              target_user: targetUserValue || null,
+            }),
+          });
         }
       }
+
+      // Refetch data to get updated planInfo
+      await refetch();
+
       setEditingItem(null);
       setIsCreating(false);
     } catch (error) {
@@ -240,12 +301,14 @@ export function BacklogContainer() {
       <div className="h-full flex items-center justify-center p-6">
         <div className="text-center space-y-4">
           <p className="text-sm text-priority-urgent">{error}</p>
-          <button
+          <Button
             onClick={() => void refetch()}
-            className="px-4 py-2 text-sm bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+            variant="secondary"
+            size="sm"
+            className="font-semibold shadow-sm active:scale-95"
           >
             Coba Lagi
-          </button>
+          </Button>
         </div>
       </div>
     );

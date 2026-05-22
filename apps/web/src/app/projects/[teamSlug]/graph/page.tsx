@@ -16,7 +16,7 @@ export default function GraphPage() {
   const [view, setView] = useState<View>("graph");
 
   return (
-    <div className="h-full flex flex-col bg-background p-4 sm:p-6 lg:p-8 animate-fade-in overflow-y-auto overflow-x-hidden relative w-full">
+    <div className="h-full flex flex-col bg-background p-4 sm:p-6 lg:p-8 animate-fade-in overflow-hidden relative w-full">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-border pb-6 shrink-0">
         <div>
@@ -58,7 +58,7 @@ export default function GraphPage() {
       </div>
 
       {/* Content */}
-      <div className="bg-card rounded-xl border border-border overflow-hidden flex-1 flex flex-col relative min-h-[500px]">
+      <div className="bg-card rounded-xl border border-border overflow-hidden flex-1 flex flex-col relative min-h-0">
         {view === "graph" ? (
           <TaskDependencyGraph teamSlug={teamSlug} />
         ) : (

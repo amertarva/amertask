@@ -5,6 +5,19 @@ import type { IssueStatus } from "../constants/IssueStatus";
 import type { IssuePriority } from "../constants/IssuePriority";
 import type { IssueLabel } from "../constants/IssueLabel";
 
+export interface IssuePlanning {
+  id: string;
+  issue_id: string;
+  start_date?: string;
+  due_date?: string;
+  estimated_hours?: number;
+  actual_hours?: number;
+  plan_info?: string;
+  target_user?: string;
+  completed_at?: string;
+  status?: string;
+}
+
 export interface Issue {
   id: string;
   number: number; // ENG-41 → number: 41
@@ -34,5 +47,7 @@ export interface Issue {
   triageReason?: string; // Alasan terkendala untuk antrean triage
   // Planning & Backlog specific
   reason?: string; // Alasan prioritas untuk priority backlog
-  planInfo?: string; // Informasi planning / expected output
+  planInfo?: string; // Informasi planning / expected output (legacy)
+  // Planning object from issue_planning table
+  planning?: IssuePlanning | null;
 }

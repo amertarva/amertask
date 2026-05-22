@@ -34,6 +34,7 @@ export function DatePicker({
   const [currentMonth, setCurrentMonth] = useState(
     new Date(value || new Date()),
   );
+  const [isOpenUpwards, setIsOpenUpwards] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
 
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -66,8 +67,21 @@ export function DatePicker({
     const maxLeft = window.innerWidth - width - 8;
     left = Math.max(8, Math.min(left, maxLeft));
 
+    const estimatedHeight = 360;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    let top = rect.bottom + 8;
+    let up = false;
+    // If space below is not enough and there's more space above, open upwards
+    if (spaceBelow < estimatedHeight && spaceAbove > spaceBelow) {
+      top = rect.top - estimatedHeight - 8;
+      up = true;
+    }
+    setIsOpenUpwards(up);
+
     setMenuPosition({
-      top: rect.bottom + 8,
+      top,
       left,
     });
   }, [align]);
@@ -231,7 +245,7 @@ export function DatePicker({
           isDarkMode ? "bg-background" : "bg-white",
           disabled
             ? "cursor-not-allowed opacity-60"
-            : "hover:bg-muted/30 cursor-pointer",
+            : "hover:bg-primary/5 hover:border-primary/30 cursor-pointer",
           isOpen && "ring-2 ring-primary/20 border-primary shadow-sm",
         )}
       >
@@ -248,18 +262,10 @@ export function DatePicker({
             "w-4 h-4 transition-colors shrink-0",
             selectedDate
               ? "text-primary"
-              : "text-text-muted group-hover:text-text",
+              : "text-text-muted group-hover:text-primary",
           )}
         />
       </button>
-
-      {reserveSpaceWhenOpen && isOpen && (
-        <div
-          aria-hidden="true"
-          className="w-full pointer-events-none"
-          style={{ height: 360 }}
-        />
-      )}
 
       {mounted &&
         typeof document !== "undefined" &&
@@ -274,17 +280,24 @@ export function DatePicker({
                   left: menuPosition.left,
                   width: 300,
                   zIndex: 2147483000,
+                  backgroundColor: isDarkMode ? "hsl(var(--background-secondary))" : "#ffffff",
                 }}
-                initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                initial={{ opacity: 0, y: isOpenUpwards ? -8 : 8, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                exit={{ opacity: 0, y: isOpenUpwards ? -8 : 8, scale: 0.98 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className={cn(
                   "rounded-xl shadow-xl overflow-hidden opacity-100",
                   isDarkMode
                     ? "bg-background-secondary border border-border/70"
                     : "bg-white border border-slate-200",
-                  align === "right" ? "origin-top-right" : "origin-top-left",
+                  align === "right"
+                    ? isOpenUpwards
+                      ? "origin-bottom-right"
+                      : "origin-top-right"
+                    : isOpenUpwards
+                      ? "origin-bottom-left"
+                      : "origin-top-left",
                 )}
               >
                 {/* Header */}
@@ -292,7 +305,7 @@ export function DatePicker({
                   <button
                     type="button"
                     onClick={() => navigateMonth("prev")}
-                    className="p-1.5 hover:bg-background-tertiary text-text-muted hover:text-text rounded-md transition-colors"
+                    className="p-1.5 hover:bg-primary/10 text-text-muted hover:text-primary hover:scale-105 active:scale-95 rounded-md transition-all duration-200"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
@@ -303,7 +316,7 @@ export function DatePicker({
                   <button
                     type="button"
                     onClick={() => navigateMonth("next")}
-                    className="p-1.5 hover:bg-background-tertiary text-text-muted hover:text-text rounded-md transition-colors"
+                    className="p-1.5 hover:bg-primary/10 text-text-muted hover:text-primary hover:scale-105 active:scale-95 rounded-md transition-all duration-200"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -351,13 +364,12 @@ export function DatePicker({
                               onClick={() => handleDateSelect(date)}
                               disabled={isDisabled}
                               className={cn(
-                                "w-8 h-8 flex items-center justify-center text-sm rounded-full transition-all duration-200",
-                                "hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/50",
+                                "w-8 h-8 flex items-center justify-center text-sm rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50",
                                 isDisabled
                                   ? "text-text-muted/30 cursor-not-allowed hover:bg-transparent line-through"
                                   : isSelected
                                     ? "bg-primary text-primary-foreground font-semibold shadow-md hover:bg-primary-hover hover:shadow-lg scale-105"
-                                    : "text-text font-medium",
+                                    : "text-text font-medium hover:bg-primary/15 hover:text-primary hover:scale-110",
                                 isToday &&
                                   !isSelected &&
                                   !isDisabled &&
@@ -386,7 +398,7 @@ export function DatePicker({
                   <button
                     type="button"
                     onClick={goToToday}
-                    className="w-full py-2 px-4 flex items-center justify-center gap-2 bg-background-tertiary hover:bg-border text-text-subtle hover:text-text rounded-lg transition-all duration-200 text-sm font-semibold group"
+                    className="w-full py-2 px-4 flex items-center justify-center gap-2 bg-background-tertiary hover:bg-primary/10 text-text-subtle hover:text-primary border border-transparent hover:border-primary/20 rounded-lg transition-all duration-200 text-sm font-semibold group active:scale-[0.98]"
                   >
                     <CalendarDays className="w-4 h-4 text-text-muted group-hover:text-primary transition-colors" />
                     Kembali ke Hari Ini

@@ -13,6 +13,8 @@ import {
   Settings as SettingsIcon,
   Network,
   Bug,
+  FileCheck,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useThemeStore } from "@/store/useThemeStore";
@@ -156,6 +158,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed = false }) => {
             label="Task Graph"
             href={`/projects/${teamSlug}/graph`}
             isActive={pathname.includes("/graph")}
+            isCollapsed={isCollapsed}
+          />
+          <SidebarItem
+            icon={<FileCheck className="w-4 h-4" />}
+            label="Requirements"
+            href={`/projects/${teamSlug}/requirements`}
+            isActive={pathname.includes("/requirements")}
+            isCollapsed={isCollapsed}
+          />
+          <SidebarItem
+            icon={<FileText className="w-4 h-4" />}
+            label="SRS Document"
+            href={`/projects/${teamSlug}/srs`}
+            isActive={pathname.includes("/srs")}
             isCollapsed={isCollapsed}
           />
         </div>

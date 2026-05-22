@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useRef, useEffect } from "react";
-import { GanttTooltip, type TooltipData } from "./GanttTooltip";
+import { GanttTooltip } from "./GanttTooltip";
 import {
   format,
   differenceInDays,
@@ -17,15 +17,16 @@ import {
 import { id as localeId } from "date-fns/locale";
 import type { GraphNode } from "@/lib/core/scheduling.api";
 import { type CustomGanttChartProps } from "@/types/components/CustomGanttChartProps";
+import type { TooltipData } from "@/types/components/GanttTypes";
 
 const STATUS_COLORS: Record<string, string> = {
-  backlog: "#6b7280",
-  todo: "#3b82f6",
-  in_progress: "#10b981",
-  in_review: "#8b5cf6",
-  done: "#059669",
-  cancelled: "#ef4444",
-  bug: "#f59e0b",
+  backlog: "#64748b", // slate gray
+  todo: "#4f46e5", // indigo
+  in_progress: "#f59e0b", // amber
+  in_review: "#8b5cf6", // purple
+  done: "#10b981", // emerald/sage
+  cancelled: "#475569", // dark slate
+  bug: "#ef4444", // red
 };
 
 export function CustomGanttChart({ tasks, viewMode }: CustomGanttChartProps) {
@@ -39,7 +40,48 @@ export function CustomGanttChart({ tasks, viewMode }: CustomGanttChartProps) {
     };
   }, []);
 
-  const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>, task: GraphNode) => {
+  const headerScrollRef = useRef<HTMLDivElement>(null);
+  const rowsScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const header = headerScrollRef.current;
+    const rows = rowsScrollRef.current;
+    if (!header || !rows) return;
+
+    let isSyncingHeader = false;
+    let isSyncingRows = false;
+
+    const handleHeaderScroll = () => {
+      if (isSyncingRows) {
+        isSyncingRows = false;
+        return;
+      }
+      isSyncingHeader = true;
+      rows.scrollLeft = header.scrollLeft;
+    };
+
+    const handleRowsScroll = () => {
+      if (isSyncingHeader) {
+        isSyncingHeader = false;
+        return;
+      }
+      isSyncingRows = true;
+      header.scrollLeft = rows.scrollLeft;
+    };
+
+    header.addEventListener("scroll", handleHeaderScroll);
+    rows.addEventListener("scroll", handleRowsScroll);
+
+    return () => {
+      header.removeEventListener("scroll", handleHeaderScroll);
+      rows.removeEventListener("scroll", handleRowsScroll);
+    };
+  }, []);
+
+  const handleMouseEnter = (
+    e: React.MouseEvent<HTMLDivElement>,
+    task: GraphNode,
+  ) => {
     if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     const rect = e.currentTarget.getBoundingClientRect();
     setTooltip({ node: task, barRect: rect });
@@ -162,72 +204,105 @@ export function CustomGanttChart({ tasks, viewMode }: CustomGanttChartProps) {
       };
     }, [tasks, viewMode]);
 
+  const columnWidth = useMemo(() => {
+    return viewMode === "Month" ? 220 : viewMode === "Week" ? 160 : 100;
+  }, [viewMode]);
+
+  const totalWidth = useMemo(() => {
+    return timelineUnits.length * columnWidth;
+  }, [timelineUnits.length, columnWidth]);
+
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const todayOffsetPercent = useMemo(() => {
+    if (today < timelineStart || today > timelineEnd) return null;
+    const totalDays = differenceInDays(timelineEnd, timelineStart) + 1;
+    const daysFromStart = differenceInDays(today, timelineStart);
+    return (daysFromStart / totalDays) * 100;
+  }, [timelineStart, timelineEnd, today]);
+
   if (tasks.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-text-muted text-sm bg-card border border-border rounded-xl shadow-sm">
+      <div className="flex items-center justify-center h-64 text-text-subtle text-sm bg-card/40 border border-border/60 rounded-xl shadow-inner animate-fade-in">
         Tidak ada task dengan jadwal
       </div>
     );
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border shadow-sm flex flex-col overflow-hidden">
+    <div className="bg-card/40 rounded-xl border border-border/60 shadow-lg flex flex-col overflow-hidden animate-fade-in h-full">
       {/* Timeline Header */}
-      <div className="flex border-b border-border sticky top-0 bg-muted/30 z-10">
+      <div className="flex border-b border-border/60 sticky top-0 bg-card/90 backdrop-blur-sm z-30">
         {/* Task names column */}
-        <div className="w-72 shrink-0 border-r border-border p-3 flex items-center">
-          <div className="font-semibold text-text text-sm">Task</div>
+        <div 
+          className="w-72 shrink-0 border-r border-border/60 p-4 flex items-center sticky left-0 z-40"
+          style={{ backgroundColor: "hsl(var(--background-secondary))" }}
+        >
+          <div className="font-bold text-text text-xs tracking-wider uppercase">Nama Tugas</div>
         </div>
 
         {/* Timeline units */}
-        <div className="flex-1 flex overflow-x-auto">
-          {timelineUnits.map((unit, i) => (
-            <div
-              key={i}
-              className={`flex-1 min-w-[80px] p-2 text-center border-r border-border/50 last:border-r-0 ${
-                unit.isToday ? "bg-primary/5" : ""
-              }`}
-            >
+        <div ref={headerScrollRef} className="flex-1 overflow-x-hidden">
+          <div className="flex" style={{ width: totalWidth }}>
+            {timelineUnits.map((unit, i) => (
               <div
-                className={`text-[11px] font-semibold ${unit.isToday ? "text-primary" : "text-text-muted"}`}
+                key={i}
+                className={`p-3 text-center border-r border-border/30 last:border-r-0 flex flex-col justify-center transition-colors shrink-0 relative ${
+                  unit.isToday ? "bg-primary/[0.04]" : ""
+                }`}
+                style={{ width: columnWidth, minWidth: columnWidth }}
               >
-                {unit.label}
+                <div
+                  className={`text-[11px] font-bold tracking-wide ${unit.isToday ? "text-primary font-extrabold" : "text-text-subtle"}`}
+                >
+                  {unit.label}
+                </div>
+                {unit.isToday && (
+                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-primary" />
+                )}
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Task rows */}
-      <div className="relative overflow-x-auto">
+      <div ref={rowsScrollRef} className="relative overflow-auto flex-1 custom-scrollbar min-h-0">
         {taskRows.map((row) => (
           <div
             key={row.task.id}
-            className="flex border-b border-border/50 hover:bg-muted/30 transition-colors group"
+            className="flex w-fit min-w-full border-b border-border/30 last:border-b-0 hover:bg-muted/10 transition-colors group relative"
           >
-            {/* Task name */}
-            <div className="w-72 shrink-0 p-3 border-r border-border flex flex-col justify-center bg-card group-hover:bg-muted/30 transition-colors relative z-10">
-              <div className="text-sm text-text font-semibold truncate flex items-center gap-1.5">
-                <span className="text-text-muted font-normal text-xs">
+            {/* Task name (sticky) */}
+            <div 
+              className="w-72 shrink-0 p-4 border-r border-border/60 flex flex-col justify-center sticky left-0 z-20 transition-colors group-hover:bg-[#232a27]"
+              style={{ backgroundColor: "hsl(var(--background-secondary))" }}
+            >
+              <div className="text-sm text-text font-bold truncate flex items-center gap-2">
+                <span className="text-text-subtle/70 font-mono text-[10px] bg-muted/30 px-1.5 py-0.5 rounded">
                   #{row.task.number}
                 </span>
-                <span className="truncate">{row.task.title}</span>
+                <span className="truncate group-hover:text-primary transition-colors">{row.task.title}</span>
               </div>
-              <div className="flex items-center gap-2 mt-1.5">
+              <div className="flex items-center gap-2.5 mt-2">
                 {/* Assignee */}
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-5.5 h-5.5 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
                     {row.task.assignee?.name?.charAt(0).toUpperCase() || "?"}
                   </div>
-                  <span className="text-xs text-text-muted truncate">
+                  <span className="text-xs text-text-subtle truncate font-medium">
                     {row.task.assignee?.name || "Unassigned"}
                   </span>
                 </div>
                 {/* Status Badge */}
                 <span
-                  className="text-[10px] px-2 py-0.5 rounded-full font-medium border whitespace-nowrap ml-auto shrink-0"
+                  className="text-[9px] px-2 py-0.5 rounded font-bold tracking-wide uppercase border whitespace-nowrap ml-auto shrink-0 transition-all duration-300"
                   style={{
-                    backgroundColor: `${STATUS_COLORS[row.task.status]}15`,
+                    backgroundColor: `${STATUS_COLORS[row.task.status]}10`,
                     color: STATUS_COLORS[row.task.status],
                     borderColor: `${STATUS_COLORS[row.task.status]}30`,
                   }}
@@ -238,46 +313,55 @@ export function CustomGanttChart({ tasks, viewMode }: CustomGanttChartProps) {
             </div>
 
             {/* Timeline area */}
-            <div className="flex-1 relative h-16 p-2">
+            <div className="relative z-10 h-18 p-3 shrink-0" style={{ width: totalWidth }}>
               {/* Grid lines */}
-              <div className="absolute inset-0 flex">
+              <div className="absolute inset-y-0 left-0 right-0 flex pointer-events-none">
                 {timelineUnits.map((unit, i) => (
                   <div
                     key={i}
-                    className={`flex-1 min-w-[80px] border-r border-border/30 last:border-r-0 ${
-                      unit.isToday ? "bg-primary/5" : ""
+                    className={`h-full border-r border-border/20 last:border-r-0 shrink-0 ${
+                      unit.isToday ? "bg-primary/[0.02]" : ""
                     }`}
+                    style={{ width: columnWidth, minWidth: columnWidth }}
                   />
                 ))}
               </div>
 
+              {/* Today Vertical Line */}
+              {todayOffsetPercent !== null && (
+                <div
+                  className="absolute inset-y-0 w-[1.5px] bg-primary/40 z-10 pointer-events-none"
+                  style={{ left: `${todayOffsetPercent}%` }}
+                />
+              )}
+
               {/* Task bar */}
               <div
-                className="absolute top-1/2 -translate-y-1/2 h-8 rounded-md shadow-sm cursor-pointer hover:ring-2 hover:ring-offset-1 hover:ring-offset-card hover:z-20 transition-all group/bar overflow-visible"
+                className="absolute top-1/2 -translate-y-1/2 h-7 rounded-full cursor-pointer hover:z-20 transition-all duration-300 group/bar overflow-visible border border-white/10 hover:border-white/30"
                 style={{
                   left: `${row.left}%`,
                   width: `${row.width}%`,
-                  backgroundColor: STATUS_COLORS[row.task.status] || "#6b7280",
+                  backgroundColor: STATUS_COLORS[row.task.status] || "#64748b",
                   minWidth: "40px",
+                  boxShadow: "none",
                 }}
                 onMouseEnter={(e) => handleMouseEnter(e, row.task)}
                 onMouseLeave={handleMouseLeave}
               >
-                {/* Progress bar */}
-                {row.progress > 0 && row.progress < 100 && (
+                {/* Progress bar inside bar */}
+                {row.progress > 0 && (
                   <div
-                    className="absolute inset-y-0 left-0 bg-white/20"
+                    className="absolute inset-y-0 left-0 bg-white/10 backdrop-blur-[0.5px] rounded-full transition-all duration-500"
                     style={{ width: `${row.progress}%` }}
                   />
                 )}
 
                 {/* Task label */}
-                <div className="relative h-full flex items-center px-2.5 overflow-hidden">
-                  <div className="text-[11px] font-medium text-white/95 truncate drop-shadow-sm">
+                <div className="relative h-full flex items-center px-3.5 overflow-hidden">
+                  <span className="text-[10px] font-bold text-white tracking-wide truncate">
                     {row.task.title}
-                  </div>
+                  </span>
                 </div>
-
               </div>
             </div>
           </div>
@@ -285,19 +369,22 @@ export function CustomGanttChart({ tasks, viewMode }: CustomGanttChartProps) {
       </div>
 
       {/* Legend */}
-      <div className="border-t border-border p-3 bg-muted/20">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-medium text-text-muted">
-            Total: {taskRows.length} task
+      <div className="border-t border-border/60 p-4 bg-card/80">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs font-bold text-text-subtle tracking-wide">
+            Total Proyek: {taskRows.length} Tugas Terjadwal
           </div>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 justify-center">
             {Object.entries(STATUS_COLORS).map(([status, color]) => (
-              <div key={status} className="flex items-center gap-1.5">
-                <div
-                  className="w-2.5 h-2.5 rounded-sm"
-                  style={{ backgroundColor: color }}
+              <div key={status} className="flex items-center gap-2">
+                <span
+                  className="w-2 h-2 rounded-full border shadow-sm shrink-0"
+                  style={{ 
+                    backgroundColor: color, 
+                    borderColor: `${color}30`,
+                  }}
                 />
-                <span className="text-[11px] font-medium text-text-muted capitalize">
+                <span className="text-[10px] font-bold text-text-subtle uppercase tracking-wider">
                   {status.replace("_", " ")}
                 </span>
               </div>

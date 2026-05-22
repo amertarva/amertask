@@ -319,6 +319,12 @@ export const teamsRoutes = new Elysia().group("/teams", (app) =>
             t.Object({
               githubRepo: t.Optional(t.String()),
               googleDocsUrl: t.Optional(t.String()),
+              separateDocsEnabled: t.Optional(t.Boolean()),
+              backlogDocs: t.Optional(t.String()),
+              planningDocs: t.Optional(t.String()),
+              executionDocs: t.Optional(t.String()),
+              rDocs: t.Optional(t.String()),
+              srsDocs: t.Optional(t.String()),
             }),
           ),
         }),

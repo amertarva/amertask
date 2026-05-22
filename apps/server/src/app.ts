@@ -12,6 +12,9 @@ import { exportRoutes } from "./routes/export.routes";
 import { schedulingRoutes } from "./routes/scheduling.routes";
 import { planningRoutes } from "./routes/planning.routes";
 import { standalonePlanningRoutes } from "./routes/standalone-planning.routes";
+import { requirementsRoutes } from "./routes/requirements.routes";
+import { srsRoutes } from "./routes/srs.routes";
+import { googleDocsRequirementsRoutes } from "./routes/google-docs-requirements.routes";
 import { AppError } from "./lib/errors";
 import { getSupabaseHealth } from "./lib/supabase";
 
@@ -99,6 +102,9 @@ export const app = new Elysia()
   .use(schedulingRoutes)
   .use(planningRoutes)
   .use(standalonePlanningRoutes)
+  .use(requirementsRoutes)
+  .use(srsRoutes)
+  .use(googleDocsRequirementsRoutes)
   // Global error handler
   .onError(({ code, error, set }) => {
     console.error("Global error handler:", {

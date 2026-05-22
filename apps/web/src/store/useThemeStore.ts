@@ -17,7 +17,7 @@ interface ThemeStore {
 export const useThemeStore = create<ThemeStore>()(
   persist(
     (set) => ({
-      colorTheme: "amerta-day",
+      colorTheme: "amerta-night",
       visualTheme: "default",
       setColorTheme: (theme) => {
         applyColorTheme(theme);
@@ -28,6 +28,13 @@ export const useThemeStore = create<ThemeStore>()(
         set({ visualTheme: theme });
       },
     }),
-    { name: "amerta-theme-storage" },
+    {
+      name: "amerta-theme-storage",
+      version: 1,
+      migrate: (state) => ({
+        ...(state as { visualTheme?: VisualTheme }),
+        colorTheme: "amerta-night",
+      }),
+    },
   ),
 );

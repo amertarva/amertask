@@ -1,19 +1,6 @@
 import { supabase } from "../../lib/supabase";
 import { errors } from "../../lib/errors";
-
-export interface CreateIssuePayload {
-  title: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  labels?: string[];
-  assigneeId?: string;
-  parentIssueId?: string;
-  source?: string;
-  isTriaged?: boolean;
-  // NOTE: reason, triageReason, planInfo moved to separate tables
-  // Use issue_triage and issue_planning tables instead
-}
+import type { CreateIssuePayload } from "../../types/services/issues/issues";
 
 function toIssueDbPayload(payload: any) {
   const mappedPayload = {
@@ -136,6 +123,7 @@ export async function updateIssue(
   payload: Partial<CreateIssuePayload>,
 ) {
   const dbPayload = toIssueDbPayload(payload) as Record<string, any>;
+  const shouldUpdateReason = payload.reason !== undefined;
 
   if (dbPayload.status === "bug" && dbPayload.is_triaged === undefined) {
     dbPayload.is_triaged = false;
@@ -198,6 +186,27 @@ export async function updateIssue(
       error,
     });
     throw errors.internal(`Gagal update issue: ${error.message}`);
+  }
+
+  if (shouldUpdateReason) {
+    const { error: reasonError } = await supabase.from("issue_triage").upsert(
+      {
+        issue_id: id,
+        reason: payload.reason ?? null,
+      } as any,
+      { onConflict: "issue_id" },
+    );
+
+    if (reasonError) {
+      console.error("[issuesService.update] reason update error:", {
+        issueId: id,
+        reason: payload.reason,
+        error: reasonError,
+      });
+      throw errors.internal(
+        `Gagal menyimpan alasan prioritas: ${reasonError.message}`,
+      );
+    }
   }
 
   return data;

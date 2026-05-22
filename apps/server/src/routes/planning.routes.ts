@@ -27,20 +27,34 @@ export const planningRoutes = new Elysia({ prefix: "/issues/:id" })
           due_date?: string;
           estimated_hours?: number;
           plan_info?: string;
+          target_user?: string;
         };
 
-        // Upsert planning data
+        // Fetch existing planning data to merge (avoid overwriting dates/plan_info)
+        const { data: existing } = await supabase
+          .from("issue_planning")
+          .select("*")
+          .eq("issue_id", params.id)
+          .maybeSingle();
+
+        const existingData = (existing as unknown as Record<string, any>) || {};
+
+        // Merge: only update fields that are explicitly provided in the request body
+        const mergedData: Record<string, any> = {
+          issue_id: params.id,
+          start_date: b.start_date !== undefined ? (b.start_date || null) : (existingData.start_date || null),
+          due_date: b.due_date !== undefined ? (b.due_date || null) : (existingData.due_date || null),
+          estimated_hours: b.estimated_hours !== undefined ? (b.estimated_hours || 0) : (existingData.estimated_hours || 0),
+          plan_info: b.plan_info !== undefined ? (b.plan_info || null) : (existingData.plan_info || null),
+          target_user: b.target_user !== undefined ? (b.target_user || null) : (existingData.target_user || null),
+          updated_at: new Date().toISOString(),
+        };
+
+        // Upsert planning data (merge preserves existing values)
         const { data, error } = await supabase
           .from("issue_planning")
           .upsert(
-            {
-              issue_id: params.id,
-              start_date: b.start_date || null,
-              due_date: b.due_date || null,
-              estimated_hours: b.estimated_hours || 0,
-              plan_info: b.plan_info || null,
-              updated_at: new Date().toISOString(),
-            } as never,
+            mergedData as never,
             { onConflict: "issue_id" },
           )
           .select()
@@ -62,6 +76,7 @@ export const planningRoutes = new Elysia({ prefix: "/issues/:id" })
         due_date: t.Optional(t.String()),
         estimated_hours: t.Optional(t.Number()),
         plan_info: t.Optional(t.String()),
+        target_user: t.Optional(t.String()),
       }),
     },
   )

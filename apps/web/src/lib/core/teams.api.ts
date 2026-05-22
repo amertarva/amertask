@@ -25,6 +25,8 @@ interface TeamDetail extends Team {
   type: string;
   startDate?: string;
   endDate?: string;
+  r_docs?: string;
+  srs_docs?: string;
   stats: TeamStats;
 }
 
@@ -43,6 +45,12 @@ interface ProjectSettings {
   integrations: {
     githubRepo?: string;
     googleDocsUrl?: string;
+    separateDocsEnabled?: boolean;
+    backlogDocs?: string;
+    planningDocs?: string;
+    executionDocs?: string;
+    rDocs?: string;
+    srsDocs?: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -61,6 +69,12 @@ interface UpdateSettingsPayload {
   integrations?: {
     githubRepo?: string;
     googleDocsUrl?: string;
+    separateDocsEnabled?: boolean;
+    backlogDocs?: string;
+    planningDocs?: string;
+    executionDocs?: string;
+    rDocs?: string;
+    srsDocs?: string;
   };
 }
 

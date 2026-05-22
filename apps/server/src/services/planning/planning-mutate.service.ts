@@ -11,6 +11,7 @@ export interface CreatePlanningPayload {
   dueDate?: string;
   estimatedHours?: number;
   planInfo?: string;
+  targetUser?: string;
 }
 
 export interface UpdatePlanningPayload {
@@ -22,6 +23,7 @@ export interface UpdatePlanningPayload {
   dueDate?: string;
   estimatedHours?: number;
   planInfo?: string;
+  targetUser?: string;
   status?: "planned" | "in_execution" | "completed" | "cancelled";
 }
 
@@ -57,6 +59,7 @@ export async function createPlanning(payload: CreatePlanningPayload) {
       due_date: payload.dueDate || null,
       estimated_hours: payload.estimatedHours || 0,
       plan_info: payload.planInfo || null,
+      target_user: payload.targetUser || null,
       status: "planned",
       issue_id: null, // Belum linked ke issues
     } as any)
@@ -117,6 +120,7 @@ export async function updatePlanning(
       due_date: payload.dueDate,
       estimated_hours: payload.estimatedHours,
       plan_info: payload.planInfo,
+      target_user: payload.targetUser,
       status: payload.status,
       updated_at: new Date().toISOString(),
     })

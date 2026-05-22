@@ -29,7 +29,7 @@ const cardVariants: Variants = {
 export default function FeaturesSection() {
   return (
     <div className="container mx-auto px-6 pb-24 md:pb-32">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
@@ -45,14 +45,14 @@ export default function FeaturesSection() {
         </p>
       </motion.div>
 
-      <motion.div 
+      <motion.div
         variants={containerVariants}
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true, margin: "-100px" }}
         className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto"
       >
-        <motion.div 
+        <motion.div
           variants={cardVariants}
           whileHover={{ y: -5, borderColor: "rgba(var(--color-primary), 0.4)" }}
           className="md:col-span-2 bg-card border border-border p-8 rounded-[2rem] transition-colors group relative overflow-hidden"
@@ -71,7 +71,7 @@ export default function FeaturesSection() {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           variants={cardVariants}
           whileHover={{ y: -5, borderColor: "rgba(var(--color-primary), 0.4)" }}
           className="bg-card border border-border p-8 rounded-[2rem] transition-colors group relative overflow-hidden"
@@ -88,7 +88,7 @@ export default function FeaturesSection() {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           variants={cardVariants}
           whileHover={{ y: -5, borderColor: "rgba(var(--color-primary), 0.4)" }}
           className="bg-card border border-border p-8 rounded-[2rem] transition-colors group relative overflow-hidden"
@@ -105,7 +105,7 @@ export default function FeaturesSection() {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           variants={cardVariants}
           whileHover={{ y: -5, borderColor: "rgba(var(--color-primary), 0.4)" }}
           className="md:col-span-2 bg-card border border-border p-8 rounded-[2rem] transition-colors group relative overflow-hidden"

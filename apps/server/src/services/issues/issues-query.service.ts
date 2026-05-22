@@ -86,7 +86,7 @@ export async function listIssues(teamId: string, params: IssueListParams) {
     const { data: planningData } = await supabase
       .from("issue_planning")
       .select(
-        "id, issue_id, start_date, due_date, estimated_hours, actual_hours, plan_info, completed_at, status",
+        "id, issue_id, start_date, due_date, estimated_hours, actual_hours, plan_info, target_user, completed_at, status",
       )
       .in("issue_id", issueIds)
       .not("issue_id", "is", null);
@@ -125,7 +125,7 @@ export async function getIssueById(id: string) {
   const { data: planningData } = await supabase
     .from("issue_planning")
     .select(
-      "id, issue_id, start_date, due_date, estimated_hours, actual_hours, plan_info, completed_at, status",
+      "id, issue_id, start_date, due_date, estimated_hours, actual_hours, plan_info, target_user, completed_at, status",
     )
     .eq("issue_id", id)
     .maybeSingle();

@@ -34,7 +34,7 @@ export function ExecutionModal({
     >
       <div
         className={cn(
-          "w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col animate-slide-up shadow-2xl",
+          "w-full max-w-2xl rounded-2xl overflow-hidden flex flex-col animate-slide-up shadow-2xl transition-all duration-300",
           isDarkMode
             ? "bg-background-secondary border border-border/70"
             : "bg-white border border-slate-200",
@@ -43,15 +43,15 @@ export function ExecutionModal({
         {/* Modal Header */}
         <div className="flex items-start justify-between px-8 pt-8 pb-4">
           <div className="flex gap-4">
-            <div className="p-3 rounded-full bg-primary/10 text-primary shrink-0">
+            <div className="p-3.5 rounded-2xl bg-primary/10 text-primary border border-primary/20 shadow-sm shrink-0 flex items-center justify-center">
               <Edit2 className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-extrabold text-2xl text-text">
+              <h3 className="font-extrabold text-2xl text-text tracking-tight">
                 Edit Eksekusi
               </h3>
-              <p className="text-text-muted text-sm mt-1">
-                Perbarui aktivitas eksekusi ke-{editingItem.no}
+              <p className="text-text-muted text-sm mt-1 leading-relaxed">
+                Perbarui aktivitas eksekusi ke-<span className="font-bold text-text">{editingItem.no}</span>
               </p>
             </div>
           </div>
@@ -59,7 +59,7 @@ export function ExecutionModal({
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="rounded-full text-text-muted hover:text-text"
+            className="rounded-full text-text-muted hover:text-text hover:bg-muted/50 transition-all active:scale-95"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -73,13 +73,13 @@ export function ExecutionModal({
         />
 
         {/* Modal Body */}
-        <div className="px-8 py-4 flex flex-col gap-6 overflow-y-auto max-h-[60vh]">
+        <div className="px-8 py-5 flex flex-col gap-6 overflow-y-auto max-h-[60vh] custom-scrollbar">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-text">
+              <label className="block text-sm font-bold text-text ml-1">
                 Aktivitas & Kaitan (ID)
               </label>
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <input
                   type="text"
                   value={editForm.taskId || ""}
@@ -87,7 +87,7 @@ export function ExecutionModal({
                     setEditForm({ ...editForm, taskId: e.target.value })
                   }
                   className={cn(
-                    "w-1/3 flex h-10 rounded px-3 py-2 text-sm uppercase placeholder:text-text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "w-1/3 flex h-11 rounded-xl px-4 py-3 text-sm uppercase font-semibold placeholder:text-text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:border-primary/60 transition-all hover:border-border-strong/50",
                     isDarkMode
                       ? "bg-background border border-input"
                       : "bg-white border border-slate-200",
@@ -101,7 +101,7 @@ export function ExecutionModal({
                     setEditForm({ ...editForm, activity: e.target.value })
                   }
                   className={cn(
-                    "w-2/3 flex h-10 rounded px-3 py-2 text-sm placeholder:text-text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "w-2/3 flex h-11 rounded-xl px-4 py-3 text-sm font-semibold placeholder:text-text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:border-primary/60 transition-all hover:border-border-strong/50",
                     isDarkMode
                       ? "bg-background border border-input"
                       : "bg-white border border-slate-200",
@@ -118,32 +118,32 @@ export function ExecutionModal({
                 setEditForm({ ...editForm, date: e.target.value })
               }
               className={cn(
+                "rounded-xl h-11 font-medium focus-visible:ring-primary/30 focus-visible:border-primary/60",
                 isDarkMode
-                  ? "bg-background border-input"
-                  : "bg-white border-slate-200",
+                  ? "bg-background border-input hover:border-border-strong/50"
+                  : "bg-white border-slate-200 hover:border-slate-300",
               )}
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-text">
+              <label className="block text-sm font-bold text-text ml-1">
                 Status Eksekusi
               </label>
               <Dropdown
                 className="w-full"
-                reserveSpaceWhenOpen
                 trigger={
                   <div
                     className={cn(
-                      "w-full h-10 flex items-center justify-between rounded px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors cursor-pointer shadow-sm",
+                      "w-full h-11 flex items-center justify-between rounded-xl px-4 text-sm font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:border-primary/60 transition-all cursor-pointer shadow-sm border hover:border-primary/30 active:scale-[0.99]",
                       isDarkMode
-                        ? "bg-background border border-input"
-                        : "bg-white border border-slate-200",
+                        ? "bg-background border-input hover:bg-muted/10"
+                        : "bg-white border-slate-200 hover:bg-slate-50",
                     )}
                   >
-                    {editForm.status || "Pilih Status..."}
-                    <ChevronDown className="w-4 h-4 text-text-muted inline" />
+                    <span>{editForm.status || "Pilih Status..."}</span>
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
                   </div>
                 }
                 items={EXECUTION_STATUSES.map((status) => ({
@@ -160,15 +160,16 @@ export function ExecutionModal({
                 setEditForm({ ...editForm, assignedUser: e.target.value })
               }
               className={cn(
+                "rounded-xl h-11 font-medium focus-visible:ring-primary/30 focus-visible:border-primary/60",
                 isDarkMode
-                  ? "bg-background border-input"
-                  : "bg-white border-slate-200",
+                  ? "bg-background border-input hover:border-border-strong/50"
+                  : "bg-white border-slate-200 hover:border-slate-300",
               )}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-text">
+            <label className="block text-sm font-bold text-text ml-1">
               Catatan Eksekusi
             </label>
             <textarea
@@ -178,10 +179,10 @@ export function ExecutionModal({
               }
               rows={3}
               className={cn(
-                "flex w-full rounded px-3 py-2 text-sm placeholder:text-text-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none",
+                "flex w-full rounded-xl px-4 py-3 text-sm font-medium placeholder:text-text-subtle/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:border-primary/60 resize-none transition-all duration-200",
                 isDarkMode
-                  ? "bg-background border border-input"
-                  : "bg-white border border-slate-200",
+                  ? "bg-background border border-input hover:border-border-strong/50"
+                  : "bg-white border border-slate-200 hover:border-slate-300",
               )}
             />
           </div>
@@ -200,9 +201,9 @@ export function ExecutionModal({
             variant="secondary"
             onClick={onClose}
             className={cn(
-              "px-6 text-text font-semibold",
+              "px-6 h-11 text-text font-bold rounded-xl transition-all duration-150 active:scale-95",
               isDarkMode
-                ? "bg-muted hover:bg-muted/80"
+                ? "bg-muted/70 hover:bg-muted"
                 : "bg-slate-100 hover:bg-slate-200",
             )}
           >
@@ -212,7 +213,10 @@ export function ExecutionModal({
             variant="primary"
             onClick={onSave}
             leftIcon={<Save className="w-4 h-4" />}
-            className="px-6 font-bold shadow-lg shadow-primary/20"
+            className={cn(
+              "px-6 h-11 font-bold rounded-xl shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all duration-150 active:scale-95",
+              isDarkMode ? "border border-primary/30" : "border border-primary/20"
+            )}
           >
             Simpan Perubahan
           </Button>

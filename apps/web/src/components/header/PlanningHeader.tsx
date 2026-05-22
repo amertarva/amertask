@@ -49,7 +49,8 @@ export function PlanningHeader({
           <Button
             onClick={onCreateClick}
             leftIcon={<Plus className="w-4 h-4" />}
-            className="flex-1 sm:flex-none shadow-sm whitespace-nowrap"
+            variant="primary"
+            className="flex-1 sm:flex-none font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 border border-primary/30 hover:border-primary/45 transition-all duration-150 active:scale-[0.97] whitespace-nowrap"
           >
             Planning Baru
           </Button>

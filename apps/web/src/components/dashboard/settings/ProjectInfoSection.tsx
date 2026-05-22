@@ -43,7 +43,6 @@ export function ProjectInfoSection({ form, setForm }: ProjectInfoSectionProps) {
           <Dropdown
             align="left"
             className="w-full"
-            reserveSpaceWhenOpen
             trigger={
               <button
                 type="button"

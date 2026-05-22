@@ -29,6 +29,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
   );
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isOpenUpwards, setIsOpenUpwards] = useState(false);
   const [menuPosition, setMenuPosition] = useState({
     top: 0,
     left: 0,
@@ -37,13 +38,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  const reservedSpaceHeight = React.useMemo(() => {
-    // Approximate menu height so following fields move down while open.
-    return (
-      items.reduce((total, item) => total + (item.divider ? 7 : 42), 12) + 8
-    );
-  }, [items]);
 
   const updateMenuPosition = React.useCallback(() => {
     const anchor = triggerRef.current ?? dropdownRef.current;
@@ -60,12 +54,26 @@ export const Dropdown: React.FC<DropdownProps> = ({
     const maxLeft = window.innerWidth - width - 8;
     left = Math.max(8, Math.min(left, maxLeft));
 
+    // Calculate approximate menu height
+    const estimatedHeight = items.reduce((total, item) => total + (item.divider ? 7 : 42), 12) + 8;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    let top = rect.bottom + 8;
+    let up = false;
+    // If space below is not enough and there's more space above, open upwards
+    if (spaceBelow < estimatedHeight && spaceAbove > spaceBelow) {
+      top = rect.top - estimatedHeight - 8;
+      up = true;
+    }
+    setIsOpenUpwards(up);
+
     setMenuPosition({
-      top: rect.bottom + 8,
+      top,
       left,
       width,
     });
-  }, [align]);
+  }, [align, items]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -127,14 +135,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
         {trigger}
       </div>
 
-      {reserveSpaceWhenOpen && isOpen && (
-        <div
-          aria-hidden="true"
-          className="w-full pointer-events-none"
-          style={{ height: reservedSpaceHeight }}
-        />
-      )}
-
       {mounted &&
         typeof document !== "undefined" &&
         createPortal(
@@ -148,17 +148,24 @@ export const Dropdown: React.FC<DropdownProps> = ({
                   left: menuPosition.left,
                   width: menuPosition.width,
                   zIndex: 2147483000,
+                  backgroundColor: isDarkMode ? "hsl(var(--background-secondary))" : "#ffffff",
                 }}
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                initial={{ opacity: 0, y: isOpenUpwards ? -8 : 8, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                exit={{ opacity: 0, y: isOpenUpwards ? -8 : 8, scale: 0.95 }}
                 transition={{ type: "spring", stiffness: 400, damping: 25 }}
                 className={cn(
                   "min-w-55 rounded-xl shadow-xl overflow-hidden p-1.5 focus:outline-none opacity-100",
                   isDarkMode
                     ? "bg-background-secondary border border-border/70"
                     : "bg-white border border-slate-200",
-                  align === "right" ? "origin-top-right" : "origin-top-left",
+                  align === "right"
+                    ? isOpenUpwards
+                      ? "origin-bottom-right"
+                      : "origin-top-right"
+                    : isOpenUpwards
+                      ? "origin-bottom-left"
+                      : "origin-top-left",
                   className,
                 )}
                 data-slot="dropdown-content"
@@ -180,12 +187,12 @@ export const Dropdown: React.FC<DropdownProps> = ({
                         onClick={() => handleItemClick(item)}
                         disabled={item.disabled}
                         className={cn(
-                          "group flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 outline-none",
+                          "group flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 outline-none transform active:scale-[0.98]",
                           item.disabled
                             ? "cursor-not-allowed opacity-50"
                             : item.danger
-                              ? "text-text cursor-pointer hover:text-priority-urgent hover:bg-priority-urgent/10"
-                              : "text-text cursor-pointer hover:text-primary hover:bg-muted",
+                              ? "text-text cursor-pointer hover:text-priority-urgent hover:bg-priority-urgent/10 hover:translate-x-1"
+                              : "text-text cursor-pointer hover:text-primary-foreground hover:bg-primary hover:translate-x-1",
                         )}
                       >
                         {item.icon && (
@@ -194,7 +201,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                               "transition-colors shrink-0 flex items-center justify-center w-4 h-4",
                               item.danger
                                 ? "text-priority-urgent/70 group-hover:text-priority-urgent"
-                                : "text-text-muted group-hover:text-primary",
+                                : "text-text-muted group-hover:text-primary-foreground",
                             )}
                           >
                             {item.icon}

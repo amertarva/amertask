@@ -2,13 +2,7 @@ import React from "react";
 import { Search, Filter, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ExportToDocsButton } from "@/components/ui/ExportToDocsButton";
-
-interface BacklogHeaderProps {
-  teamSlug: string;
-  onCreateClick: (value: boolean) => void;
-  onSetEditForm: (value: Record<string, unknown>) => void;
-  onSetOpenMenuId: (value: string | null) => void;
-}
+import type { BacklogHeaderProps } from "@/types/components/BacklogHeaderProps";
 
 export function BacklogHeader({
   teamSlug,
@@ -60,9 +54,10 @@ export function BacklogHeader({
               onSetOpenMenuId(null);
             }}
             leftIcon={<Plus className="w-4 h-4" />}
-            className="flex-1 sm:flex-none shadow-sm whitespace-nowrap"
+            variant="primary"
+            className="flex-1 sm:flex-none font-bold shadow-lg shadow-primary/20 hover:shadow-primary/30 border border-primary/30 hover:border-primary/45 transition-all duration-150 active:scale-[0.97] whitespace-nowrap"
           >
-            Pilih dari Execution
+            Buat dari Eksekusi
           </Button>
         </div>
       </div>

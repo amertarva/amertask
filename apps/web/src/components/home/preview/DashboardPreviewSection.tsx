@@ -16,13 +16,9 @@ import BacklogPreview from "./BacklogPreview";
 import AnalyticsPreview from "./AnalyticsPreview";
 import TeamPreview from "./TeamPreview";
 import { motion, AnimatePresence } from "motion/react";
+import type { DashboardPreviewSectionProps } from "@/types/components/DashboardPreviewSectionProps";
 
 type TabType = "board" | "backlog" | "analytics" | "team";
-
-interface DashboardPreviewSectionProps {
-  embedded?: boolean;
-  className?: string;
-}
 
 export default function DashboardPreviewSection({
   embedded = false,
@@ -34,9 +30,7 @@ export default function DashboardPreviewSection({
   return (
     <div
       className={cn(
-        embedded
-          ? "w-full"
-          : "container mx-auto px-6 pb-24 md:pb-32",
+        embedded ? "w-full" : "container mx-auto px-6 pb-24 md:pb-32",
         className,
       )}
     >
@@ -126,11 +120,13 @@ export default function DashboardPreviewSection({
                     <item.icon
                       className={cn(
                         "w-4 h-4 shrink-0 transition-colors",
-                        activeTab === item.id ? "text-primary" : "group-hover:text-primary/70",
+                        activeTab === item.id
+                          ? "text-primary"
+                          : "group-hover:text-primary/70",
                       )}
                     />
                     {isSidebarOpen && (
-                      <motion.span 
+                      <motion.span
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         className="whitespace-nowrap"
@@ -142,7 +138,7 @@ export default function DashboardPreviewSection({
                 ))}
               </div>
               {isSidebarOpen ? (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.2 }}
@@ -151,7 +147,7 @@ export default function DashboardPreviewSection({
                   <div className="px-3 text-xs font-bold text-text-muted uppercase tracking-wider">
                     Favorites
                   </div>
-                  <motion.div 
+                  <motion.div
                     whileHover={{ x: 4 }}
                     className="px-3 py-1.5 flex items-center gap-3 text-sm text-text-muted hover:text-text cursor-pointer"
                   >
@@ -160,7 +156,7 @@ export default function DashboardPreviewSection({
                       Website Redesign
                     </span>
                   </motion.div>
-                  <motion.div 
+                  <motion.div
                     whileHover={{ x: 4 }}
                     className="px-3 py-1.5 flex items-center gap-3 text-sm text-text-muted hover:text-text cursor-pointer"
                   >
@@ -213,4 +209,3 @@ export default function DashboardPreviewSection({
     </div>
   );
 }
-

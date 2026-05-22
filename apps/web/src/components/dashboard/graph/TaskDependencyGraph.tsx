@@ -15,36 +15,68 @@ import {
   MarkerType,
   ConnectionMode,
   Panel,
+  Handle,
+  Position,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { motion } from "framer-motion";
 import { format, differenceInDays } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import {
+  Calendar,
+  Zap,
+  AlertTriangle,
+  HelpCircle,
+  PlayCircle,
+  Loader2,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+} from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { STATUS_CONFIG } from "./GanttView";
+import type { IssueStatus } from "@/types";
+import {
   schedulingApi,
   type GraphNode,
   type GraphEdge,
 } from "@/lib/core/scheduling.api";
 
-// ─── Konstanta warna per status ───────────────────────────────────────────────
+// ─── Konstanta warna prioritas ────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<
+const PRIORITY_CONFIG: Record<
   string,
-  { bg: string; border: string; text: string }
+  { label: string; bg: string; border: string; text: string; dot: string }
 > = {
-  backlog: { bg: "#1a1a1a", border: "#404040", text: "#888" },
-  todo: { bg: "#1a2035", border: "#3b5bdb", text: "#748ffc" },
-  in_progress: { bg: "#1a2a1a", border: "#2f9e44", text: "#69db7c" },
-  in_review: { bg: "#2a1a2a", border: "#9c36b5", text: "#da77f2" },
-  done: { bg: "#0a1a0a", border: "#1e6641", text: "#40c057" },
-  cancelled: { bg: "#1a0a0a", border: "#c92a2a", text: "#ff6b6b" },
-};
-
-const PRIORITY_DOT: Record<string, string> = {
-  urgent: "#ff6b6b",
-  high: "#ffa94d",
-  medium: "#ffd43b",
-  low: "#69db7c",
+  urgent: {
+    label: "Urgent",
+    bg: "bg-red-500/10",
+    border: "border-red-500/30",
+    text: "text-red-400",
+    dot: "bg-red-500",
+  },
+  high: {
+    label: "High",
+    bg: "bg-orange-500/10",
+    border: "border-orange-500/30",
+    text: "text-orange-400",
+    dot: "bg-orange-500",
+  },
+  medium: {
+    label: "Medium",
+    bg: "bg-yellow-500/10",
+    border: "border-yellow-500/30",
+    text: "text-yellow-400",
+    dot: "bg-yellow-500",
+  },
+  low: {
+    label: "Low",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/30",
+    text: "text-emerald-400",
+    dot: "bg-emerald-500",
+  },
 };
 
 // ─── Layout Helpers ───────────────────────────────────────────────────────────
@@ -93,7 +125,34 @@ function getYPosition(
   const level = levelMap.get(id) ?? 0;
   const nodesAtLevel = nodes.filter((n) => levelMap.get(n.id) === level);
   const idx = nodesAtLevel.findIndex((n) => n.id === id);
-  return idx * 200;
+  return idx * 240; // Spasi baris sedikit diperbesar untuk kartu yang lebih tinggi
+}
+
+// Helper status icon
+function getStatusIcon(status: string) {
+  switch (status) {
+    case "backlog":
+      return <HelpCircle className="w-3.5 h-3.5 text-gray-500" />;
+    case "todo":
+      return <PlayCircle className="w-3.5 h-3.5 text-blue-500" />;
+    case "in_progress":
+      return (
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+        >
+          <Loader2 className="w-3.5 h-3.5 text-emerald-500" />
+        </motion.div>
+      );
+    case "in_review":
+      return <Eye className="w-3.5 h-3.5 text-purple-400" />;
+    case "done":
+      return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />;
+    case "cancelled":
+      return <XCircle className="w-3.5 h-3.5 text-rose-500" />;
+    default:
+      return <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />;
+  }
 }
 
 // ─── Custom Node: Task Card ───────────────────────────────────────────────────
@@ -103,159 +162,191 @@ function TaskCardNode({
 }: {
   data: GraphNode & { isCritical: boolean; isShifted: boolean };
 }) {
-  const colors = STATUS_COLORS[data.status] ?? STATUS_COLORS.backlog;
+  const cfg =
+    STATUS_CONFIG[data.status as IssueStatus] ?? STATUS_CONFIG.backlog;
+  const statusColor = cfg.dotColor || "#6b7280";
+
   const duration =
     data.start_date && data.due_date
       ? differenceInDays(new Date(data.due_date), new Date(data.start_date))
       : null;
 
+  const pri = PRIORITY_CONFIG[data.priority] ?? {
+    label: data.priority,
+    bg: "bg-gray-500/10",
+    border: "border-gray-500/30",
+    text: "text-gray-400",
+    dot: "bg-gray-500",
+  };
+
   return (
-    <motion.div
-      initial={{ scale: 0.8, opacity: 0 }}
-      animate={{
-        scale: data.isShifted ? [1, 1.05, 1] : 1,
-        opacity: 1,
-        boxShadow: data.isCritical
-          ? ["0 0 0px #ff6b6b", "0 0 20px #ff6b6b66", "0 0 0px #ff6b6b"]
-          : "none",
-      }}
-      transition={{
-        duration: data.isShifted ? 0.6 : 0.3,
-        boxShadow: { repeat: data.isCritical ? Infinity : 0, duration: 2 },
-      }}
-      style={{
-        background: colors.bg,
-        border: `1px solid ${data.isCritical ? "#ff6b6b" : colors.border}`,
-        borderRadius: "8px",
-        padding: "12px 14px",
-        minWidth: "200px",
-        maxWidth: "240px",
-        cursor: "grab",
-      }}
-    >
-      {/* Header */}
-      <div
+    <div className="relative group">
+      {/* Target Handle (Left) */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="left"
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "6px",
+          width: "10px",
+          height: "10px",
+          left: "-5px",
+          background: "#1a1f1d",
+          border: `2px solid ${statusColor}`,
+          zIndex: 50,
         }}
-      >
-        <span
-          style={{ fontSize: "10px", color: "#555", fontFamily: "monospace" }}
-        >
-          #{data.number}
-        </span>
-        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-          {data.isCritical && (
-            <span
-              style={{
-                fontSize: "9px",
-                background: "#ff6b6b22",
-                color: "#ff6b6b",
-                padding: "1px 5px",
-                borderRadius: "3px",
-              }}
-            >
-              CRITICAL
-            </span>
-          )}
-          <div
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: PRIORITY_DOT[data.priority] ?? "#888",
-            }}
-          />
-        </div>
-      </div>
+        className="hover:!scale-125 !transition-all"
+      />
 
-      {/* Title */}
-      <div
-        style={{
-          fontSize: "13px",
-          fontWeight: 600,
-          color: "#e8e8e8",
-          marginBottom: "8px",
-          lineHeight: 1.3,
+      {/* Main Node Card */}
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{
+          scale: data.isShifted ? [1, 1.02, 1] : 1,
+          opacity: 1,
+          boxShadow: data.isCritical
+            ? [
+                "0 0 4px rgba(239, 68, 68, 0.4), 0 10px 25px -5px rgba(0, 0, 0, 0.6)",
+                "0 0 16px rgba(239, 68, 68, 0.65), 0 10px 25px -5px rgba(0, 0, 0, 0.6)",
+                "0 0 4px rgba(239, 68, 68, 0.4), 0 10px 25px -5px rgba(0, 0, 0, 0.6)",
+              ]
+            : "0 10px 20px -5px rgba(0, 0, 0, 0.5)",
         }}
+        transition={{
+          duration: data.isShifted ? 0.6 : 0.3,
+          boxShadow: {
+            repeat: data.isCritical ? Infinity : 0,
+            duration: 2.5,
+            ease: "easeInOut",
+          },
+        }}
+        className={`w-[230px] rounded-xl relative overflow-hidden backdrop-blur-md transition-all duration-300 border bg-card/85 group-hover:bg-card/95 select-none ${
+          data.isCritical
+            ? "border-red-500/50 shadow-[0_0_12px_rgba(239,68,68,0.25)]"
+            : "border-border/60 hover:border-border"
+        }`}
       >
-        {data.title}
-      </div>
-
-      {/* Dates */}
-      {data.start_date && data.due_date ? (
+        {/* Left Status Accent Bar */}
         <div
-          style={{ fontSize: "10px", color: colors.text, marginBottom: "6px" }}
-        >
-          {format(new Date(data.start_date), "d MMM", { locale: localeId })}
-          {" → "}
-          {format(new Date(data.due_date), "d MMM yyyy", { locale: localeId })}
-          {duration !== null && (
-            <span style={{ marginLeft: "4px", opacity: 0.7 }}>
-              ({duration}h)
+          className="absolute left-0 top-0 bottom-0 w-1.5"
+          style={{ backgroundColor: statusColor }}
+        />
+
+        <div className="p-3.5 pl-5 flex flex-col gap-2.5">
+          {/* Top metadata row */}
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-mono text-muted-foreground/60 font-medium">
+              #{data.number}
             </span>
-          )}
-        </div>
-      ) : (
-        <div
-          style={{
-            fontSize: "10px",
-            color: "#444",
-            marginBottom: "6px",
-            fontStyle: "italic",
-          }}
-        >
-          Belum ada jadwal
-        </div>
-      )}
-
-      {/* Assignee */}
-      {data.assignee && (
-        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-          <div
-            style={{
-              width: "18px",
-              height: "18px",
-              borderRadius: "50%",
-              background: "#2d3748",
-              border: `1px solid ${colors.border}`,
-              fontSize: "8px",
-              color: colors.text,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 700,
-            }}
-          >
-            {data.assignee.initials?.[0] ?? "?"}
+            <div className="flex items-center gap-1.5">
+              {data.isCritical && (
+                <span className="text-[8px] bg-red-500/15 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded font-extrabold tracking-wider">
+                  CRITICAL
+                </span>
+              )}
+              <div
+                className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-bold tracking-wide uppercase ${pri.bg} ${pri.border} ${pri.text}`}
+              >
+                <span className={`w-1 h-1 rounded-full ${pri.dot}`} />
+                {pri.label}
+              </div>
+            </div>
           </div>
-          <span style={{ fontSize: "10px", color: "#666" }}>
-            {data.assignee.name}
-          </span>
-        </div>
-      )}
 
-      {/* Shifted indicator */}
-      {data.isShifted && (
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={{
-            marginTop: "6px",
-            fontSize: "9px",
-            color: "#ffd43b",
-            background: "#ffd43b11",
-            padding: "2px 6px",
-            borderRadius: "3px",
-          }}
-        >
-          ⚡ Jadwal digeser otomatis
-        </motion.div>
-      )}
-    </motion.div>
+          {/* Title */}
+          <h3 className="font-semibold text-xs text-text leading-snug tracking-tight text-left line-clamp-2 pr-1">
+            {data.title}
+          </h3>
+
+          {/* Status & Date row */}
+          <div className="flex flex-col gap-1.5 pt-2 border-t border-border/20">
+            <div className="flex items-center gap-1.5 text-[10px] text-text-muted">
+              {getStatusIcon(data.status)}
+              <span
+                className="font-semibold capitalize text-[10px]"
+                style={{ color: statusColor }}
+              >
+                {cfg.label}
+              </span>
+            </div>
+
+            {data.start_date && data.due_date ? (
+              <div className="flex items-center gap-1.5 text-[9.5px] text-text-subtle font-medium">
+                <Calendar className="w-3.5 h-3.5 text-primary/60 shrink-0" />
+                <span className="truncate">
+                  {format(new Date(data.start_date), "d MMM", {
+                    locale: localeId,
+                  })}
+                  {" → "}
+                  {format(new Date(data.due_date), "d MMM yyyy", {
+                    locale: localeId,
+                  })}
+                </span>
+                {duration !== null && (
+                  <span className="text-[8.5px] text-primary bg-primary/10 px-1 py-0.2 rounded font-bold shrink-0">
+                    {duration}d
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-[9.5px] text-text-subtle italic">
+                <Calendar className="w-3.5 h-3.5 text-primary/30 shrink-0" />
+                <span>Belum dijadwalkan</span>
+              </div>
+            )}
+          </div>
+
+          {/* Assignee & Shifted section */}
+          {(data.assignee || data.isShifted) && (
+            <div className="flex flex-col gap-2 pt-2 border-t border-border/20">
+              {data.assignee && (
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold border"
+                    style={{
+                      background: `${statusColor}12`,
+                      borderColor: `${statusColor}35`,
+                      color: statusColor,
+                    }}
+                  >
+                    {data.assignee.initials?.[0] ?? "?"}
+                  </div>
+                  <span className="text-[10px] text-text-muted font-medium truncate">
+                    {data.assignee.name}
+                  </span>
+                </div>
+              )}
+
+              {data.isShifted && (
+                <motion.div
+                  initial={{ opacity: 0, y: 2 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-1.5 text-[9px] text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-1 rounded"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                  <span className="font-semibold">Jadwal digeser otomatis</span>
+                </motion.div>
+              )}
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Source Handle (Right) */}
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="right"
+        style={{
+          width: "10px",
+          height: "10px",
+          right: "-5px",
+          background: "#1a1f1d",
+          border: `2px solid ${statusColor}`,
+          zIndex: 50,
+        }}
+        className="hover:!scale-125 !transition-all"
+      />
+    </div>
   );
 }
 
@@ -290,7 +381,7 @@ export function TaskDependencyGraph({
         id: n.id,
         type: "taskCard",
         position: {
-          x: (levelMap.get(n.id) ?? 0) * 280,
+          x: (levelMap.get(n.id) ?? 0) * 310, // Lebar spasi horizontal sedikit diperbesar agar koneksi tidak menumpuk
           y: getYPosition(n.id, levelMap, rawNodes),
         },
         data: {
@@ -300,25 +391,34 @@ export function TaskDependencyGraph({
         },
       }));
 
-      const flowEdges: Edge[] = rawEdges.map((e) => ({
-        id: `${e.depends_on}-${e.issue_id}`,
-        source: e.depends_on,
-        target: e.issue_id,
-        type: "smoothstep",
-        animated:
+      const flowEdges: Edge[] = rawEdges.map((e) => {
+        const isCriticalEdge =
           criticalIds.includes(e.issue_id) &&
-          criticalIds.includes(e.depends_on),
-        markerEnd: { type: MarkerType.ArrowClosed, color: "#555" },
-        style: {
-          stroke:
-            criticalIds.includes(e.issue_id) &&
-            criticalIds.includes(e.depends_on)
-              ? "#ff6b6b"
-              : "#333",
-          strokeWidth: 1.5,
-        },
-        label: e.lag_days > 0 ? `+${e.lag_days}h` : undefined,
-      }));
+          criticalIds.includes(e.depends_on);
+        return {
+          id: `${e.depends_on}-${e.issue_id}`,
+          source: e.depends_on,
+          target: e.issue_id,
+          type: "smoothstep",
+          animated: isCriticalEdge,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: isCriticalEdge ? "#ef4444" : "rgba(136, 169, 155, 0.4)",
+          },
+          style: {
+            stroke: isCriticalEdge ? "#ef4444" : "rgba(136, 169, 155, 0.25)",
+            strokeWidth: isCriticalEdge ? 2.5 : 1.5,
+          },
+          label: e.lag_days > 0 ? `+${e.lag_days}d` : undefined,
+          labelStyle: { fill: "#88a99b", fontSize: 10, fontWeight: 600 },
+          labelBgStyle: {
+            fill: "rgba(22, 28, 25, 0.95)",
+            stroke: "rgba(136, 169, 155, 0.15)",
+            strokeWidth: 1,
+            rx: 4,
+          },
+        };
+      });
 
       setNodes(flowNodes);
       setEdges(flowEdges);
@@ -367,8 +467,11 @@ export function TaskDependencyGraph({
             {
               ...connection,
               type: "smoothstep",
-              markerEnd: { type: MarkerType.ArrowClosed },
-              style: { stroke: "#333", strokeWidth: 1.5 },
+              markerEnd: {
+                type: MarkerType.ArrowClosed,
+                color: "rgba(136, 169, 155, 0.4)",
+              },
+              style: { stroke: "rgba(136, 169, 155, 0.25)", strokeWidth: 1.5 },
             },
             eds,
           ),
@@ -403,31 +506,108 @@ export function TaskDependencyGraph({
 
   if (isLoading)
     return (
-      <div className="flex items-center justify-center h-96 text-gray-500 text-sm">
-        Memuat dependency graph...
+      <div className="flex flex-col items-center justify-center h-[600px] bg-card/30 border border-border/40 rounded-xl backdrop-blur-sm gap-3">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <span className="text-text-muted text-sm font-medium">
+          Memuat dependency graph...
+        </span>
       </div>
     );
 
   if (error)
     return (
-      <div className="flex flex-col items-center gap-3 h-96 justify-center">
-        <p className="text-red-400 text-sm">{error}</p>
-        <button onClick={loadGraph} className="text-xs underline text-gray-400">
-          Coba lagi
-        </button>
+      <div className="flex flex-col items-center justify-center h-[600px] bg-card/30 border border-border/40 rounded-xl backdrop-blur-sm gap-4 p-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-sm font-bold text-text">Gagal Memuat Graph</h3>
+          <p className="text-xs text-text-subtle max-w-sm">{error}</p>
+        </div>
+        <Button
+          onClick={loadGraph}
+          variant="secondary"
+          className="text-xs gap-1.5"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Coba Lagi
+        </Button>
       </div>
     );
 
   return (
     <div
-      className={`relative ${className}`}
+      className={`relative w-full rounded-xl overflow-hidden border border-border/60 bg-card/25 backdrop-blur-sm shadow-xl ${className}`}
       style={{
-        height: "600px",
-        background: "#0d0d0d",
-        borderRadius: "12px",
-        overflow: "hidden",
+        height: "100%",
       }}
     >
+      <style>{`
+        .react-flow__controls {
+          background: rgba(22, 28, 25, 0.95) !important;
+          border: 1px solid rgba(136, 169, 155, 0.15) !important;
+          border-radius: 8px !important;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+          overflow: hidden;
+          padding: 2px !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 2px !important;
+        }
+        .react-flow__controls-button {
+          background: transparent !important;
+          border-bottom: 1px solid rgba(136, 169, 155, 0.08) !important;
+          color: #88a99b !important;
+          fill: #88a99b !important;
+          transition: all 0.2s ease !important;
+          width: 24px !important;
+          height: 24px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          border-radius: 4px !important;
+        }
+        .react-flow__controls-button:last-child {
+          border-bottom: none !important;
+        }
+        .react-flow__controls-button:hover {
+          background: rgba(136, 169, 155, 0.12) !important;
+          color: #e8edea !important;
+        }
+        .react-flow__controls-button svg {
+          max-width: 14px !important;
+          max-height: 14px !important;
+        }
+        .react-flow__minimap {
+          background: rgba(22, 28, 25, 0.95) !important;
+          border: 1px solid rgba(136, 169, 155, 0.15) !important;
+          border-radius: 8px !important;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+          overflow: hidden !important;
+          margin: 16px !important;
+        }
+        .react-flow__minimap-mask {
+          fill: rgba(0, 0, 0, 0.55) !important;
+        }
+        .react-flow__edge-path {
+          transition: stroke-width 0.2s ease, stroke 0.2s ease;
+        }
+        .react-flow__edge:hover .react-flow__edge-path {
+          stroke-width: 3px !important;
+          stroke: #88a99b !important;
+        }
+        .react-flow__handle {
+          width: 8px !important;
+          height: 8px !important;
+          background: #1a1f1d !important;
+          border: 2px solid #88a99b !important;
+          transition: all 0.2s ease !important;
+        }
+        .react-flow__handle:hover {
+          transform: scale(1.3) !important;
+          background: #88a99b !important;
+        }
+      `}</style>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -443,31 +623,50 @@ export function TaskDependencyGraph({
         maxZoom={2}
         defaultEdgeOptions={{ type: "smoothstep" }}
       >
-        <Background color="#1a1a1a" gap={20} />
-        <Controls style={{ background: "#1a1a1a", border: "1px solid #333" }} />
+        <Background color="#161c19" gap={24} style={{ opacity: 0.4 }} />
+        <Controls />
         <MiniMap
-          style={{ background: "#111", border: "1px solid #333" }}
           nodeColor={(n) => {
-            const status = (n.data as Record<string, unknown>).status as string;
-            return STATUS_COLORS[status]?.border ?? "#333";
+            const data = n.data as unknown as GraphNode;
+            if (!data || !data.status) return "#333";
+            const cfg = STATUS_CONFIG[data.status as IssueStatus];
+            return cfg?.dotColor ?? "#333";
           }}
         />
-        <Panel position="top-right">
+        <Panel position="top-right" className="m-4">
           <div
+            className="backdrop-blur-md bg-[#161c19]/90 border border-[#88a99b]/15 rounded-lg p-3 shadow-xl max-w-xs transition-all duration-300"
             style={{
-              background: "#1a1a1a",
-              border: "1px solid #333",
-              borderRadius: "8px",
-              padding: "10px 14px",
-              fontSize: "11px",
-              color: "#666",
+              boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.7)",
             }}
           >
-            <div>Drag dari node → ke node untuk tambah dependency</div>
-            <div>Klik edge → Delete untuk hapus dependency</div>
+            <h4 className="text-[11px] font-bold text-primary tracking-wider uppercase mb-1.5 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              Petunjuk Dependency
+            </h4>
+            <ul className="space-y-1 text-[10px] text-text-muted font-medium list-none pl-0">
+              <li className="flex items-start gap-1.5">
+                <span className="text-primary/70 shrink-0">→</span>
+                <span>
+                  Tarik garis dari titik kanan node ke titik kiri node lain
+                  untuk menambah ketergantungan.
+                </span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <span className="text-rose-400/80 shrink-0">×</span>
+                <span>
+                  Pilih garis koneksi lalu tekan{" "}
+                  <kbd className="px-1 py-0.2 bg-white/10 rounded font-mono text-[9px] text-text">
+                    Delete
+                  </kbd>{" "}
+                  untuk menghapus.
+                </span>
+              </li>
+            </ul>
           </div>
         </Panel>
       </ReactFlow>
     </div>
   );
 }
+

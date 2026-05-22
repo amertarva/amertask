@@ -5,21 +5,17 @@ import { AlertCircle, CheckCircle2, Copy, Loader2 } from "lucide-react";
 import { exportApi, type ExportType } from "@/lib/core";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-
-interface ExportToDocsButtonProps {
-  teamSlug: string;
-  type: ExportType;
-  label?: string;
-  className?: string;
-  onSuccess?: (documentUrl: string) => void;
-}
-
-type ExportState = "idle" | "loading" | "success" | "error";
+import type {
+  ExportState,
+  ExportToDocsButtonProps,
+} from "@/types/components/ExportToDocsButtonProps";
 
 const TYPE_LABEL: Record<ExportType, string> = {
-  planning: "Planning",
+  planning: "Perencanaan",
   backlog: "Backlog",
-  execution: "Execution",
+  execution: "Eksekusi",
+  requirements: "Requirement",
+  srs: "SRS",
 };
 
 export function ExportToDocsButton({
@@ -33,7 +29,7 @@ export function ExportToDocsButton({
   const [message, setMessage] = useState("");
   const resetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const baseLabel = label ?? `Copy ${TYPE_LABEL[type]} to Docs`;
+  const baseLabel = label ?? `Ekspor ${TYPE_LABEL[type]} ke Google Docs`;
 
   useEffect(() => {
     return () => {
@@ -89,9 +85,9 @@ export function ExportToDocsButton({
 
   const visibleLabel =
     state === "loading"
-      ? "Menyalin..."
+      ? "Mengekspor..."
       : state === "success"
-        ? "Tersalin"
+        ? "Berhasil Diekspor"
         : state === "error"
           ? "Gagal"
           : baseLabel;
@@ -102,19 +98,20 @@ export function ExportToDocsButton({
         type="button"
         onClick={handleExport}
         disabled={!teamSlug || state === "loading"}
+        variant="ghost"
         className={cn(
-          "border border-border bg-card text-text hover:bg-muted/70",
+          "border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary transition-all font-semibold shadow-sm active:scale-95",
           state === "success" &&
-            "border-green-500/40 bg-green-500/10 text-green-700",
+            "border-status-done/30 bg-status-done/10 text-status-done hover:bg-status-done/15 hover:text-status-done",
           state === "error" &&
-            "border-priority-urgent/40 bg-priority-urgent/10 text-priority-urgent",
+            "border-priority-urgent/30 bg-priority-urgent/10 text-priority-urgent hover:bg-priority-urgent/15 hover:text-priority-urgent",
         )}
       >
         <Icon
           className={cn(
             "w-4 h-4",
             state === "loading" && "animate-spin",
-            state === "success" && "text-green-700",
+            state === "success" && "text-status-done",
             state === "error" && "text-priority-urgent",
           )}
         />
@@ -124,8 +121,8 @@ export function ExportToDocsButton({
       {message ? (
         <p
           className={cn(
-            "text-xs font-medium",
-            state === "success" && "text-green-700",
+            "text-xs font-medium mt-1",
+            state === "success" && "text-status-done",
             state === "error" && "text-priority-urgent",
             state === "loading" && "text-text-muted",
           )}

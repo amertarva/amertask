@@ -150,6 +150,12 @@ export const teamsController = {
         description: string | null;
         github_repo: string | null;
         google_docs_url: string | null;
+        separate_docs_enabled: boolean | null;
+        backlog_docs: string | null;
+        planning_docs: string | null;
+        execution_docs: string | null;
+        r_docs: string | null;
+        srs_docs: string | null;
         created_at: string;
         updated_at: string;
       }>();
@@ -173,6 +179,12 @@ export const teamsController = {
       integrations: {
         githubRepo: data.github_repo,
         googleDocsUrl: data.google_docs_url,
+        separateDocsEnabled: data.separate_docs_enabled === true,
+        backlogDocs: data.backlog_docs,
+        planningDocs: data.planning_docs,
+        executionDocs: data.execution_docs,
+        rDocs: data.r_docs,
+        srsDocs: data.srs_docs,
       },
       createdAt: data.created_at,
       updatedAt: data.updated_at,
@@ -202,6 +214,18 @@ export const teamsController = {
       updates.github_repo = body.integrations.githubRepo;
     if (body.integrations?.googleDocsUrl !== undefined)
       updates.google_docs_url = body.integrations.googleDocsUrl;
+    if (body.integrations?.separateDocsEnabled !== undefined)
+      updates.separate_docs_enabled = body.integrations.separateDocsEnabled;
+    if (body.integrations?.backlogDocs !== undefined)
+      updates.backlog_docs = body.integrations.backlogDocs;
+    if (body.integrations?.planningDocs !== undefined)
+      updates.planning_docs = body.integrations.planningDocs;
+    if (body.integrations?.executionDocs !== undefined)
+      updates.execution_docs = body.integrations.executionDocs;
+    if (body.integrations?.rDocs !== undefined)
+      updates.r_docs = body.integrations.rDocs;
+    if (body.integrations?.srsDocs !== undefined)
+      updates.srs_docs = body.integrations.srsDocs;
 
     const team = await teamsService.updateTeamSettings(teamId, updates);
 
@@ -220,6 +244,12 @@ export const teamsController = {
       integrations: {
         githubRepo: (team as any).github_repo,
         googleDocsUrl: (team as any).google_docs_url,
+        separateDocsEnabled: (team as any).separate_docs_enabled === true,
+        backlogDocs: (team as any).backlog_docs,
+        planningDocs: (team as any).planning_docs,
+        executionDocs: (team as any).execution_docs,
+        rDocs: (team as any).r_docs,
+        srsDocs: (team as any).srs_docs,
       },
       createdAt: (team as any).created_at,
       updatedAt: (team as any).updated_at,

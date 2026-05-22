@@ -1,16 +1,13 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
+import type { TokenPayload } from "../../types/services/auth/auth";
+
+export type { TokenPayload };
 
 const getSecret = () => {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_SECRET tidak ada di environment");
   return new TextEncoder().encode(secret);
 };
-
-export interface TokenPayload extends JWTPayload {
-  sub: string;
-  email: string;
-  name: string;
-}
 
 export async function signAccessToken(
   payload: Omit<TokenPayload, "iat" | "exp">,

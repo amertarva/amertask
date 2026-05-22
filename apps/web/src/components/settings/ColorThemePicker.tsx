@@ -1,18 +1,9 @@
 import { ColorTheme } from "@/lib/theme";
-import { Sun, Moon, CheckCircle2 } from "lucide-react";
+import { Moon, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ColorThemePickerProps } from "@/types";
 
 const COLOR_THEMES = [
-  {
-    id: "amerta-day" as ColorTheme,
-    name: "Amerta-Day",
-    description: "Tampilan terang, nyaman untuk siang hari",
-    icon: Sun,
-    previewBg: "#ffffff",
-    previewText: "#0f172a",
-    previewAccent: "#3b82f6",
-  },
   {
     id: "amerta-night" as ColorTheme,
     name: "Amerta-Night",

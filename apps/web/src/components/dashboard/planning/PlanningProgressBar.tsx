@@ -2,12 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
-import type { ProgressResult } from "@/lib/utils/progress.utils";
-
-interface Props {
-  progress: ProgressResult;
-  className?: string;
-}
+import type { PlanningProgressBarProps } from "@/types/components/PlanningProgressBarProps";
 
 // Warna progress bar berdasarkan persentase
 function getProgressColor(pct: number): string {
@@ -17,7 +12,10 @@ function getProgressColor(pct: number): string {
   return "#6b7280"; // abu-abu — awal sprint
 }
 
-export function PlanningProgressBar({ progress, className = "" }: Props) {
+export function PlanningProgressBar({
+  progress,
+  className = "",
+}: PlanningProgressBarProps) {
   const color = getProgressColor(progress.percentage);
   const [showBreakdown, setShowBreakdown] = useState(false);
 

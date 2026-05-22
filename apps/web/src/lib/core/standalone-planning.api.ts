@@ -13,6 +13,7 @@ export interface StandalonePlanning {
   due_date?: string;
   estimated_hours?: number;
   plan_info?: string;
+  target_user?: string;
   issue_id?: string | null;
   created_at: string;
   updated_at: string;

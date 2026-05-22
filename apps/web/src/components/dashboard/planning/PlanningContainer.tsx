@@ -8,7 +8,7 @@ import { PlanningModal } from "@/components/modals/PlanningModal";
 import { PromoteConfirmModal } from "@/components/modals/PromoteConfirmModal";
 import { useTeamMembers } from "@/hooks/useTeams";
 import { useParams } from "next/navigation";
-import { Skeleton } from "@/components/ui";
+import { Skeleton, Button } from "@/components/ui";
 import Swal from "sweetalert2";
 import {
   standalonePlanningApi,
@@ -362,12 +362,14 @@ export function PlanningContainer() {
       <div className="h-full flex items-center justify-center p-6">
         <div className="text-center space-y-4">
           <p className="text-sm text-priority-urgent">{error}</p>
-          <button
+          <Button
             onClick={() => void fetchPlannings()}
-            className="px-4 py-2 text-sm bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+            variant="secondary"
+            size="sm"
+            className="font-semibold shadow-sm active:scale-95"
           >
             Coba Lagi
-          </button>
+          </Button>
         </div>
       </div>
     );

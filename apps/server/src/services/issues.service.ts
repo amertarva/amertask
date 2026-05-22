@@ -9,7 +9,7 @@ export {
   updateIssue,
   deleteIssue,
 } from "./issues/issues-mutate.service";
-export type { CreateIssuePayload } from "./issues/issues-mutate.service";
+export type { CreateIssuePayload } from "../types/services/issues/issues";
 
 import {
   listIssues,

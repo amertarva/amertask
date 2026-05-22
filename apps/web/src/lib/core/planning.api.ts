@@ -6,6 +6,7 @@ export interface IssuePlanningData {
   dueDate?: string | null;
   estimatedHours?: number;
   planInfo?: string;
+  targetUser?: string;
 }
 
 export interface IssuePlanning extends IssuePlanningData {
@@ -26,6 +27,7 @@ export const planningApi = {
         due_date: data.dueDate,
         estimated_hours: data.estimatedHours,
         plan_info: data.planInfo,
+        target_user: data.targetUser,
       }),
     }),
 

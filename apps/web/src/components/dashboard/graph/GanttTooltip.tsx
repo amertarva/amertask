@@ -10,27 +10,9 @@ import {
   format,
 } from "date-fns";
 import { id as localeId } from "date-fns/locale";
-import type { GraphNode } from "@/lib/core/scheduling.api";
-import { STATUS_CONFIG, type IssueStatus } from "./GanttView";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface TooltipData {
-  node: GraphNode;
-  // Posisi bar dalam viewport (dari getBoundingClientRect)
-  barRect: {
-    left: number;
-    right: number;
-    bottom: number;
-    width: number;
-    top: number;
-  };
-}
-
-interface Props {
-  data: TooltipData | null;
-  visible: boolean;
-}
+import { STATUS_CONFIG } from "./GanttView";
+import type { IssueStatus } from "@/types";
+import type { GanttTooltipProps } from "@/types/components/GanttTypes";
 
 // ─── Konstanta ────────────────────────────────────────────────────────────────
 
@@ -40,7 +22,7 @@ const VIEWPORT_MARGIN = 12; // jarak minimum dari tepi viewport (px)
 
 // ─── Komponen ────────────────────────────────────────────────────────────────
 
-export function GanttTooltip({ data, visible }: Props) {
+export function GanttTooltip({ data, visible }: GanttTooltipProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -92,7 +74,7 @@ export function GanttTooltip({ data, visible }: Props) {
   // Clamp agar tidak keluar kiri/kanan
   left = Math.max(
     VIEWPORT_MARGIN,
-    Math.min(left, viewportWidth - TOOLTIP_WIDTH - VIEWPORT_MARGIN)
+    Math.min(left, viewportWidth - TOOLTIP_WIDTH - VIEWPORT_MARGIN),
   );
 
   const top = barRect.bottom + TOOLTIP_OFFSET;
@@ -102,7 +84,7 @@ export function GanttTooltip({ data, visible }: Props) {
   const barCenterX = barRect.left + barRect.width / 2;
   const arrowLeftInBox = Math.max(
     16,
-    Math.min(barCenterX - left, TOOLTIP_WIDTH - 16)
+    Math.min(barCenterX - left, TOOLTIP_WIDTH - 16),
   );
 
   const content = (
@@ -110,17 +92,17 @@ export function GanttTooltip({ data, visible }: Props) {
       {visible && (
         <motion.div
           key="gantt-tooltip"
-          initial={{ opacity: 0, y: -6, scale: 0.97 }}
+          initial={{ opacity: 0, y: -8, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -4, scale: 0.97 }}
-          transition={{ duration: 0.15, ease: "easeOut" }}
+          exit={{ opacity: 0, y: -6, scale: 0.95 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           style={{
             position: "fixed",
             top: `${top}px`,
             left: `${left}px`,
             width: `${TOOLTIP_WIDTH}px`,
             zIndex: 9999,
-            pointerEvents: "none", // tidak ganggu mouse event
+            pointerEvents: "none",
           }}
         >
           {/* ── Arrow (segitiga di atas tooltip) ── */}
@@ -134,48 +116,51 @@ export function GanttTooltip({ data, visible }: Props) {
               height: 0,
               borderLeft: "6px solid transparent",
               borderRight: "6px solid transparent",
-              borderBottom: "6px solid #1e1e1e",
+              borderBottom: "6px solid rgba(22, 28, 25, 0.98)",
             }}
           />
 
           {/* ── Card ── */}
           <div
             style={{
-              background: "#111",
-              border: `1px solid ${cfg.dotColor}33`,
-              borderRadius: "10px",
+              background: "rgba(22, 28, 25, 0.98)",
+              backdropFilter: "blur(12px)",
+              border: `1px solid rgba(136, 169, 155, 0.15)`,
+              borderRadius: "12px",
               overflow: "hidden",
-              boxShadow: `0 8px 32px #00000088, 0 0 0 1px #ffffff08`,
+              boxShadow: `0 20px 40px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05)`,
             }}
           >
             {/* Header: nama + status */}
             <div
               style={{
-                padding: "10px 14px 8px",
-                borderBottom: "1px solid #1a1a1a",
+                padding: "14px 16px 10px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
                 display: "flex",
                 alignItems: "flex-start",
                 justifyContent: "space-between",
-                gap: "8px",
+                gap: "10px",
               }}
             >
               <div>
                 <div
                   style={{
-                    fontSize: "10px",
-                    color: "#444",
-                    marginBottom: "2px",
+                    fontSize: "9px",
+                    color: "#64748b",
+                    fontWeight: "bold",
+                    marginBottom: "3px",
                     fontFamily: "monospace",
+                    letterSpacing: "0.05em"
                   }}
                 >
                   #{node.number}
                 </div>
                 <div
                   style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#e8e8e8",
-                    lineHeight: 1.3,
+                    fontSize: "13.5px",
+                    fontWeight: "700",
+                    color: "#f1f5f9",
+                    lineHeight: 1.4,
                     maxWidth: "200px",
                     wordBreak: "break-word",
                   }}
@@ -189,11 +174,11 @@ export function GanttTooltip({ data, visible }: Props) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "5px",
-                  padding: "3px 8px",
-                  borderRadius: "20px",
-                  background: `${cfg.dotColor}18`,
-                  border: `1px solid ${cfg.dotColor}44`,
+                  gap: "6px",
+                  padding: "4px 10px",
+                  borderRadius: "6px",
+                  background: `${cfg.dotColor}12`,
+                  border: `1px solid ${cfg.dotColor}30`,
                   flexShrink: 0,
                   marginTop: "2px",
                 }}
@@ -208,10 +193,12 @@ export function GanttTooltip({ data, visible }: Props) {
                 />
                 <span
                   style={{
-                    fontSize: "10px",
+                    fontSize: "9px",
                     color: cfg.dotColor,
-                    fontWeight: 600,
+                    fontWeight: "bold",
                     whiteSpace: "nowrap",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
                   }}
                 >
                   {cfg.label}
@@ -224,34 +211,43 @@ export function GanttTooltip({ data, visible }: Props) {
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr 1fr",
-                borderBottom: "1px solid #1a1a1a",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
               }}
             >
               {[
-                { icon: <Calendar className="w-3 h-3" />, label: "Tanggal Mulai", value: startStr },
-                { icon: <Flag className="w-3 h-3" />, label: "Tenggat Waktu", value: endStr },
                 {
-                  icon: <Clock className="w-3 h-3" />,
-                  label: "Estimasi Waktu",
+                  icon: <Calendar className="w-3 h-3 text-primary" />,
+                  label: "Mulai",
+                  value: startStr,
+                },
+                {
+                  icon: <Flag className="w-3 h-3 text-primary" />,
+                  label: "Tenggat",
+                  value: endStr,
+                },
+                {
+                  icon: <Clock className="w-3 h-3 text-primary" />,
+                  label: "Durasi",
                   value: calendarDays !== null ? `${calendarDays} hari` : "—",
                   sub:
                     businessDays !== null
                       ? `${businessDays} hari kerja`
                       : undefined,
                 },
-              ].map((item) => (
+              ].map((item, idx) => (
                 <div
                   key={item.label}
                   style={{
-                    padding: "8px 12px",
-                    borderRight: "1px solid #1a1a1a",
+                    padding: "10px 14px",
+                    borderRight: idx < 2 ? "1px solid rgba(255, 255, 255, 0.04)" : "none",
                   }}
                 >
                   <div
                     style={{
-                      fontSize: "9px",
-                      color: "#444",
-                      marginBottom: "3px",
+                      fontSize: "8.5px",
+                      color: "#88a99b",
+                      fontWeight: "bold",
+                      marginBottom: "4px",
                       letterSpacing: "0.05em",
                       display: "flex",
                       alignItems: "center",
@@ -261,7 +257,7 @@ export function GanttTooltip({ data, visible }: Props) {
                     {item.icon} {item.label.toUpperCase()}
                   </div>
                   <div
-                    style={{ fontSize: "11px", color: "#ccc", fontWeight: 600 }}
+                    style={{ fontSize: "11px", color: "#cbd5e1", fontWeight: "600" }}
                   >
                     {item.value}
                   </div>
@@ -269,8 +265,9 @@ export function GanttTooltip({ data, visible }: Props) {
                     <div
                       style={{
                         fontSize: "9px",
-                        color: "#444",
-                        marginTop: "1px",
+                        color: "#475569",
+                        fontWeight: "500",
+                        marginTop: "2px",
                       }}
                     >
                       {item.sub}
@@ -284,8 +281,8 @@ export function GanttTooltip({ data, visible }: Props) {
             {progress > 0 && (
               <div
                 style={{
-                  padding: "8px 14px",
-                  borderBottom: "1px solid #1a1a1a",
+                  padding: "10px 16px 12px",
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
                 }}
               >
                 <div
@@ -293,13 +290,14 @@ export function GanttTooltip({ data, visible }: Props) {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: "5px",
+                    marginBottom: "6px",
                   }}
                 >
                   <span
                     style={{
-                      fontSize: "9px",
-                      color: "#444",
+                      fontSize: "8.5px",
+                      color: "#88a99b",
+                      fontWeight: "bold",
                       letterSpacing: "0.05em",
                     }}
                   >
@@ -307,9 +305,9 @@ export function GanttTooltip({ data, visible }: Props) {
                   </span>
                   <span
                     style={{
-                      fontSize: "10px",
+                      fontSize: "11px",
                       color: cfg.dotColor,
-                      fontWeight: 700,
+                      fontWeight: "800",
                     }}
                   >
                     {progress}%
@@ -317,9 +315,9 @@ export function GanttTooltip({ data, visible }: Props) {
                 </div>
                 <div
                   style={{
-                    height: "4px",
-                    background: "#1a1a1a",
-                    borderRadius: "2px",
+                    height: "5px",
+                    background: "rgba(255, 255, 255, 0.03)",
+                    borderRadius: "9999px",
                     overflow: "hidden",
                   }}
                 >
@@ -329,8 +327,8 @@ export function GanttTooltip({ data, visible }: Props) {
                     transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
                     style={{
                       height: "100%",
-                      background: `linear-gradient(90deg, ${cfg.color}aa, ${cfg.dotColor})`,
-                      borderRadius: "2px",
+                      backgroundColor: cfg.dotColor,
+                      borderRadius: "9999px",
                     }}
                   />
                 </div>
@@ -341,25 +339,25 @@ export function GanttTooltip({ data, visible }: Props) {
             {node.assignee && (
               <div
                 style={{
-                  padding: "8px 14px",
+                  padding: "10px 16px",
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
+                  gap: "10px",
                 }}
               >
                 {/* Avatar */}
                 <div
                   style={{
-                    width: "22px",
-                    height: "22px",
+                    width: "24px",
+                    height: "24px",
                     borderRadius: "50%",
-                    background: `${cfg.dotColor}22`,
-                    border: `1px solid ${cfg.dotColor}44`,
+                    background: `${cfg.dotColor}15`,
+                    border: `1px solid ${cfg.dotColor}35`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: "9px",
-                    fontWeight: 700,
+                    fontSize: "10px",
+                    fontWeight: "bold",
                     color: cfg.dotColor,
                     flexShrink: 0,
                   }}
@@ -367,27 +365,29 @@ export function GanttTooltip({ data, visible }: Props) {
                   {node.assignee.initials?.[0] ?? "?"}
                 </div>
                 <div>
-                  <div style={{ fontSize: "10px", color: "#888" }}>
+                  <div style={{ fontSize: "11px", color: "#cbd5e1", fontWeight: "600" }}>
                     {node.assignee.name}
                   </div>
-                  <div style={{ fontSize: "9px", color: "#444" }}>
+                  <div style={{ fontSize: "9px", color: "#475569", fontWeight: "bold" }}>
                     Penanggung Jawab
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Footer: hint drag */}
+            {/* Footer */}
             <div
               style={{
-                padding: "6px 14px",
-                background: "#0d0d0d",
-                borderTop: "1px solid #1a1a1a",
+                padding: "8px 16px",
+                background: "rgba(0, 0, 0, 0.2)",
+                borderTop: "1px solid rgba(255, 255, 255, 0.04)",
                 fontSize: "9px",
-                color: "#333",
+                color: "#475569",
+                fontWeight: "500",
+                letterSpacing: "0.02em",
               }}
             >
-              Tahan dan geser untuk menjadwalkan ulang · Klik untuk melihat rincian
+              Jadwal Waktu Tugas · Tahan dan geser untuk menjadwalkan ulang
             </div>
           </div>
         </motion.div>

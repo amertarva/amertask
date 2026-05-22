@@ -61,16 +61,16 @@ export default function HeroSection() {
               <br className="hidden lg:block" /> Setiap Sprint.
             </h1>
           </motion.div>
-          
-          <motion.p 
+
+          <motion.p
             variants={itemVariants}
             className="text-lg md:text-xl text-text-muted max-w-2xl mx-auto lg:mx-0 leading-relaxed"
           >
             Kelola proyek enterprise secara terstruktur dan cepat melalui
             kolaborasi tim tanpa batas!
           </motion.p>
-          
-          <motion.div 
+
+          <motion.div
             variants={itemVariants}
             className="flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-4 pt-4"
           >
@@ -116,7 +116,7 @@ export default function HeroSection() {
                   </div>
                 </div>
                 <div className="text-[11px] sm:text-xs font-medium text-text-muted text-left leading-tight">
-                  Dipercaya oleh <span className="text-text font-bold">10.000+</span><br/>
+                  Dipercaya oleh <span className="text-text font-bold">10.000+</span><br />
                   pengguna aktif
                 </div>
               </div>
@@ -124,7 +124,7 @@ export default function HeroSection() {
           </motion.div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           variants={imageVariants}
           initial="hidden"
           animate="visible"

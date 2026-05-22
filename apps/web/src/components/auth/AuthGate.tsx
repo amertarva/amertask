@@ -1,16 +1,10 @@
 "use client";
 
 import { useEffect, Suspense } from "react";
-import type { ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { AppLoader } from "@/components/ui/AppLoader";
-
-interface AuthGateProps {
-  children: ReactNode;
-  redirectTo?: string;
-  loadingFallback?: ReactNode;
-}
+import type { AuthGateProps } from "@/types/components/AuthGateProps";
 
 function AuthGateContent({
   children,
@@ -61,9 +55,7 @@ function AuthGateContent({
 
 export function AuthGate(props: AuthGateProps) {
   return (
-    <Suspense
-      fallback={<AppLoader text="Memuat..." />}
-    >
+    <Suspense fallback={<AppLoader text="Memuat..." />}>
       <AuthGateContent {...props} />
     </Suspense>
   );
